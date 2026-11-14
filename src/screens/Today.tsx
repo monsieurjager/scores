@@ -43,8 +43,10 @@ export function Today() {
   const clubComps = enabled.filter((c) => (sport === 'all' || c.sport === sport) && !isNational(c));
   const hasBleus = sport === 'football' && enabled.some((c) => c.sport === 'football' && isNational(c));
   const compOptions = [{ id: 'all', label: 'Toutes' }, ...clubComps.map((c) => ({ id: c.id, label: c.name })), ...(hasBleus ? [{ id: 'bleus', label: 'Les Bleus' }] : [])];
-  const activeComp = compOptions.some((o) => o.id === comp) ? comp : 'all';
+  const isToday = dayKey === todayKey();
   const showChips = sport === 'football';
+  // La compétition choisie ne s'applique que si les pastilles sont visibles (filtre Foot).
+  const activeComp = showChips && compOptions.some((o) => o.id === comp) ? comp : 'all';
 
   const matchesFilter = (m: Match) => {
     const c = COMPETITIONS.find((x) => x.id === m.competitionId);
@@ -62,15 +64,18 @@ export function Today() {
   // Jour sans match : on montre le prochain match (après le jour affiché), plutôt qu'un écran vide.
   const emptyDay = state.status === 'ready' && visible.length === 0;
   const nextMatch = emptyDay ? upcomingNext.find((m) => dayKeyOf(m.kickoff) > dayKey) : undefined;
-  const franceNext = upcomingNext.filter((m) => isFrance(m) && m.id !== nextMatch?.id).slice(0, 4);
-  const nextClubs = upcomingNext.filter((m) => !isFrance(m) && m.id !== nextMatch?.id).slice(0, 8);
+  // Pas de doublon : on exclut ce qui est déjà affiché plus haut (liste du jour, prochain match).
+  // Ces sections n'ont de sens qu'aujourd'hui ou sur un jour vide.
+  const alreadyShown = new Set([...visible.map((m) => m.id), ...(nextMatch ? [nextMatch.id] : [])]);
+  const showUpcoming = isToday || emptyDay;
+  const franceNext = showUpcoming ? upcomingNext.filter((m) => isFrance(m) && !alreadyShown.has(m.id)).slice(0, 4) : [];
+  const nextClubs = showUpcoming ? upcomingNext.filter((m) => !isFrance(m) && !alreadyShown.has(m.id)).slice(0, 8) : [];
   // Les matchs de mes équipes passent en premier, dans une section à part.
   const favMatches = visible.filter((m) => isFavMatch(m, favKeys)).sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || a.kickoff.localeCompare(b.kickoff));
   const others = visible.filter((m) => !isFavMatch(m, favKeys));
   const live = others.filter((m) => m.status === 'live');
   const upcoming = others.filter((m) => m.status === 'scheduled' || m.status === 'postponed');
   const finished = others.filter((m) => m.status === 'finished');
-  const isToday = dayKey === todayKey();
   const go = (n: number) => setDayKey(addDays(dayKey, n));
 
   return (
@@ -116,7 +121,7 @@ export function Today() {
         </div>
 
         <div class="filters">
-          <Segmented<SportFilter> label="Sport" value={sport} onChange={setSport} options={[{ id: 'all', label: 'Tout' }, ...SPORTS.map((s) => ({ id: s.id as SportFilter, label: s.label }))]} />
+          <Segmented<SportFilter> label="Sport" value={sport} onChange={(v) => { setSport(v); setComp('all'); }} options={[{ id: 'all', label: 'Tout' }, ...SPORTS.map((s) => ({ id: s.id as SportFilter, label: s.label }))]} />
           {showChips && <Chips value={activeComp} options={compOptions} onChange={setComp} />}
         </div>
 
