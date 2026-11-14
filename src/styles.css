@@ -46,14 +46,16 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { background: var(--bg); min-height: 100lvh; }
+html { background: var(--bg); min-height: 100%; overflow-x: clip; overscroll-behavior: none; touch-action: pan-y; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
   font: 400 17px/1.35 -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  overscroll-behavior-y: none;
+  overflow-x: clip;
+  overscroll-behavior: none;
+  touch-action: pan-y;
 }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 .tnum { font-variant-numeric: tabular-nums; }
@@ -61,13 +63,13 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* Lueurs d'ambiance : donnent de la matière au verre (dégradés, donc très légers à afficher) */
 .ambient {
-  position: fixed; left: 0; right: 0; top: -160px; height: calc(100lvh + 320px); z-index: 0; pointer-events: none; opacity: var(--lo);
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: var(--lo); overflow: hidden;
   background:
     radial-gradient(60vmax 60vmax at -15% -8%, var(--l1), transparent 62%),
     radial-gradient(55vmax 55vmax at 115% 42%, var(--l2), transparent 62%),
     radial-gradient(55vmax 55vmax at -10% 108%, var(--l3), transparent 62%);
 }
-#app { position: relative; z-index: 1; }
+#app { position: relative; z-index: 1; overflow-x: clip; }
 
 /* Verre : surtout utile là où le contenu défile dessous (barres, pilules) */
 .glass {
@@ -107,7 +109,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .segmented button[aria-selected='true'] { color: var(--pill-on-fg); font-weight: 600; }
 
 /* Pastilles de compétition */
-.chips { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px; max-width: calc(100% + 32px); width: calc(100% + 32px); scrollbar-width: none; }
+.chips { touch-action: pan-x pan-y; display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px; padding: 2px 16px; max-width: calc(100% + 32px); width: calc(100% + 32px); scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
 .chip { flex: none; height: 34px; padding: 0 15px; border-radius: 17px; font-size: 14px; font-weight: 500; background: var(--glass); border: 1px solid var(--edge); transition: background .2s, color .2s, transform .15s; }
 .chip:active { transform: scale(.95); }
@@ -169,7 +171,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* ===== Barre d'onglets flottante ===== */
 .tabbar {
-  position: fixed; left: 50%; z-index: 30; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  position: fixed; left: 0; right: 0; margin-inline: auto; width: fit-content; max-width: calc(100% - 24px); z-index: 30; bottom: calc(14px + env(safe-area-inset-bottom));
   display: flex; gap: 2px; padding: 6px; border-radius: 34px;
   background: var(--nav-glass); border: 1px solid var(--edge); box-shadow: var(--nav-shadow);
   -webkit-backdrop-filter: blur(30px) saturate(190%); backdrop-filter: blur(30px) saturate(190%);
