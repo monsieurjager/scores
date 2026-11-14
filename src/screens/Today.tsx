@@ -5,6 +5,7 @@ import { addDays, dayKeyOf, dayLabel, dayLong, isRelativeDay, todayKey } from '.
 import { useMatches } from '../hooks/useMatches';
 import { useUpcoming } from '../hooks/useUpcoming';
 import { useStored } from '../hooks/useStored';
+import { isFavMatch, useFavorites } from '../lib/favorites';
 import { Chips, CompactCard, Empty, LiveCard, Section, Segmented, Skeletons } from '../components/ui';
 import { IconCalendar, IconChevron } from '../components/icons';
 
@@ -23,6 +24,7 @@ export function Today() {
   const [scrolled, setScrolled] = useState(false);
   const { state, retry } = useMatches(dayKey);
   const upcomingAll = useUpcoming(dayKey === todayKey());
+  const { keys: favKeys } = useFavorites();
   const dateInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -54,9 +56,12 @@ export function Today() {
   };
   const franceNext = upcomingNext.filter(isFrance).slice(0, 4);
   const nextClubs = upcomingNext.filter((m) => !isFrance(m)).slice(0, 8);
-  const live = visible.filter((m) => m.status === 'live');
-  const upcoming = visible.filter((m) => m.status === 'scheduled' || m.status === 'postponed');
-  const finished = visible.filter((m) => m.status === 'finished');
+  // Les matchs de mes équipes passent en premier, dans une section à part.
+  const favMatches = visible.filter((m) => isFavMatch(m, favKeys)).sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || a.kickoff.localeCompare(b.kickoff));
+  const others = visible.filter((m) => !isFavMatch(m, favKeys));
+  const live = others.filter((m) => m.status === 'live');
+  const upcoming = others.filter((m) => m.status === 'scheduled' || m.status === 'postponed');
+  const finished = others.filter((m) => m.status === 'finished');
   const isToday = dayKey === todayKey();
   const go = (n: number) => setDayKey(addDays(dayKey, n));
 
@@ -116,6 +121,11 @@ export function Today() {
               action={isToday ? undefined : "Revenir à aujourd'hui"}
               onAction={() => setDayKey(todayKey())}
             />
+          )}
+          {favMatches.length > 0 && (
+            <Section title="Mes équipes">
+              {favMatches.map((m) => (m.status === 'live' ? <LiveCard key={m.id} m={m} /> : <CompactCard key={m.id} m={m} />))}
+            </Section>
           )}
           {live.length > 0 && (
             <Section title="En direct" live>

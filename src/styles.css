@@ -182,6 +182,24 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .tab[aria-current='page'] span { display: inline; }
 .tab:active { transform: scale(.94); }
 
+/* ===== Favoris ===== */
+.team-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; padding: 10px 10px 10px 16px; border-radius: 22px; }
+.team-row-text { display: grid; min-width: 0; }
+.team-row-text .team-name { font-size: 16px; font-weight: 600; }
+.small { font-size: 12px; }
+.star-btn { width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; color: var(--sub); transition: color .2s, transform .15s; }
+.star-btn.on { color: #f5b301; }
+.star-btn:active { transform: scale(.85); }
+.add-btn { display: inline-flex; align-items: center; gap: 8px; margin: 16px 0 0 6px; }
+.sheet { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; padding: calc(env(safe-area-inset-top) + 16px) 16px 0; max-width: 640px; margin: 0 auto; background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%); animation: sheet-in .3s cubic-bezier(.3, .9, .3, 1) both; }
+@keyframes sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px 12px; }
+.sheet-head h2 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.03em; }
+.search { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; border-radius: 22px; color: var(--sub); }
+.search input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; color: var(--fg); font: inherit; font-size: 16px; -webkit-appearance: none; appearance: none; }
+.search input::placeholder { color: var(--sub); }
+.sheet-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; margin: 14px -16px 0; padding: 0 16px calc(32px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
+
 /* Appareils anciens : verre allégé */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass, .tabbar, .navbar.scrolled { background: var(--bg); }

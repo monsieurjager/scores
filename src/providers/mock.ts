@@ -1,4 +1,4 @@
-import type { Match, MatchProvider, MatchStatus, Team } from '../types';
+import type { Match, MatchProvider, MatchStatus, Team, TeamEntry } from '../types';
 import { dayKeyOf, todayKey } from '../lib/date';
 
 /** Données de démonstration (étape 1). Remplacées par ESPN à l'étape 5. */
@@ -106,5 +106,12 @@ export const mockProvider: MatchProvider = {
       { id: 'u2', competitionId: 'pl', kickoff: day(7, 5), status: 'scheduled', home: FIXTURES[3][1], away: FIXTURES[3][2] },
       { id: 'u3', competitionId: 'tests', kickoff: day(8, 6), status: 'scheduled', home: FIXTURES[11][1], away: FIXTURES[11][2] },
     ] as Match[];
+  },
+
+  async getTeams() {
+    await new Promise((r) => setTimeout(r, 400));
+    const seen = new Map<string, TeamEntry>();
+    for (const [c, h, a] of FIXTURES) for (const team of [h, a]) seen.set(team.id, { sport: c === 'tests' ? 'rugby' : 'football', team });
+    return [...seen.values()];
   },
 };

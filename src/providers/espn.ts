@@ -1,4 +1,4 @@
-import type { Competition, Match, MatchProvider, MatchStatus, Team } from '../types';
+import type { Competition, Match, MatchProvider, MatchStatus, Team, TeamEntry } from '../types';
 import { COMPETITIONS } from '../config/competitions';
 import { frenchName } from '../config/teamNames';
 import { addDays, dayKeyOf } from '../lib/date';
@@ -15,6 +15,7 @@ interface EspnTeam {
   shortDisplayName?: string;
   abbreviation?: string;
   logo?: string;
+  logos?: { href: string }[];
   color?: string;
   alternateColor?: string;
 }
@@ -36,7 +37,7 @@ const toTeam = (t: EspnTeam, national: boolean): Team => {
   // Un écusson noir disparaît sur le verre sombre : on préfère la couleur alternative.
   const dark = (hex?: string) => !hex || parseInt(hex, 16) < 0x202020;
   const color = dark(t.color) ? (dark(t.alternateColor) ? undefined : t.alternateColor) : t.color;
-  return { id: t.id, name: long, short: t.abbreviation ?? long.slice(0, 3).toUpperCase(), logo: t.logo?.replace(/^http:/, 'https:'), color };
+  return { id: t.id, name: long, short: t.abbreviation ?? long.slice(0, 3).toUpperCase(), logo: (t.logo ?? t.logos?.[0]?.href)?.replace(/^http:/, 'https:'), color };
 };
 
 function toStatus(e: EspnEvent): MatchStatus {
@@ -111,5 +112,23 @@ export const espnProvider: MatchProvider = {
     const byId = new Map<string, Match>();
     for (const r of ok) for (const m of r.value) if (m.status === 'scheduled' && new Date(m.kickoff).getTime() > now) byId.set(m.id, m);
     return [...byId.values()].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+  },
+
+  async getTeams(signal) {
+    // Championnats de clubs + équipes nationales (Ligue des nations pour le foot, Championnat des Nations pour le rugby).
+    const sources = COMPETITIONS.filter((c) => !c.onlyTeams || c.id === 'ldn' || c.id === 'nations');
+    const results = await Promise.allSettled(
+      sources.map(async (c) => {
+        const res = await fetch(`${BASE}/${c.espn.sport}/${c.espn.league}/teams`, { signal });
+        if (!res.ok) throw new Error(`ESPN teams ${c.id}: HTTP ${res.status}`);
+        const json = (await res.json()) as { sports?: { leagues?: { teams?: { team: EspnTeam }[] }[] }[] };
+        return (json.sports?.[0]?.leagues?.[0]?.teams ?? []).map((t): TeamEntry => ({ sport: c.sport, team: toTeam(t.team, !!c.onlyTeams) }));
+      }),
+    );
+    const ok = results.filter((r): r is PromiseFulfilledResult<TeamEntry[]> => r.status === 'fulfilled');
+    if (ok.length === 0) throw (results[0] as PromiseRejectedResult).reason;
+    const byKey = new Map<string, TeamEntry>();
+    for (const r of ok) for (const e of r.value) byKey.set(`${e.sport}:${e.team.id}`, e);
+    return [...byKey.values()].sort((a, b) => a.team.name.localeCompare(b.team.name, 'fr'));
   },
 };

@@ -35,9 +35,16 @@ export interface Competition {
   onlyTeams?: string[];
 }
 
+export interface TeamEntry {
+  sport: SportId;
+  team: Team;
+}
+
 export interface MatchProvider {
   /** `only` : ne recharger que ces compétitions (rafraîchissement live). */
   getMatches(dayKey: string, signal?: AbortSignal, only?: string[]): Promise<Match[]>;
   /** Prochains matchs à venir (toutes compétitions suivies), triés par date. */
   getUpcoming(signal?: AbortSignal): Promise<Match[]>;
+  /** Équipes proposées dans le sélecteur de favoris. */
+  getTeams(signal?: AbortSignal): Promise<TeamEntry[]>;
 }

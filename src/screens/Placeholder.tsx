@@ -1,7 +1,7 @@
 import { IconStar, IconSliders } from '../components/icons';
 
-export function Placeholder({ kind }: { kind: 'favoris' | 'reglages' }) {
-  const fav = kind === 'favoris';
+export function Placeholder({ kind }: { kind: 'reglages' }) {
+  const fav = false;
   return (
     <main class="screen screen-plain">
       <div class="large-title">
