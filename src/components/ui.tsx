@@ -114,7 +114,7 @@ export function CompactCard({ m, withDate = false }: { m: Match; withDate?: bool
         ) : (
           <span class="meta-main tnum">{formatTime(m.kickoff)}</span>
         )}
-        <span class="muted">{withDate ? `${formatTime(m.kickoff)} · ${comp?.short ?? ''}` : comp?.name}</span>
+        <span class="muted">{withDate ? `${formatTime(m.kickoff)} · ${comp?.name ?? ''}` : comp?.name}</span>
       </div>
     </li>
   );

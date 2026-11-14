@@ -42,7 +42,7 @@ export function Today() {
   const enabled = enabledCompetitions();
   const clubComps = enabled.filter((c) => (sport === 'all' || c.sport === sport) && !isNational(c));
   const hasBleus = sport === 'football' && enabled.some((c) => c.sport === 'football' && isNational(c));
-  const compOptions = [{ id: 'all', label: 'Toutes' }, ...clubComps.map((c) => ({ id: c.id, label: c.short })), ...(hasBleus ? [{ id: 'bleus', label: 'Les Bleus' }] : [])];
+  const compOptions = [{ id: 'all', label: 'Toutes' }, ...clubComps.map((c) => ({ id: c.id, label: c.name })), ...(hasBleus ? [{ id: 'bleus', label: 'Les Bleus' }] : [])];
   const activeComp = compOptions.some((o) => o.id === comp) ? comp : 'all';
   const showChips = sport === 'football';
 

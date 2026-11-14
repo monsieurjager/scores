@@ -92,7 +92,6 @@ export interface Competition {
   id: string;
   sport: SportId;
   name: string;
-  short: string;
   /** Chemin ESPN : /sports/{espn.sport}/{espn.league}/scoreboard */
   espn: { sport: 'soccer' | 'rugby'; league: string };
   /** Rugby : ne garder que les matchs impliquant ces équipes. */
