@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Match } from '../types';
-import { COMPETITIONS, SPORTS } from '../config/competitions';
+import { COMPETITIONS, SPORTS, isNational } from '../config/competitions';
 import { addDays, dayKeyOf, dayLabel, dayLong, isRelativeDay, todayKey } from '../lib/date';
 import { useMatches } from '../hooks/useMatches';
 import { useUpcoming } from '../hooks/useUpcoming';
@@ -32,29 +32,28 @@ export function Today() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Si le jour courant change (minuit passé), on ne force rien : l'utilisateur navigue.
-  const comps = useMemo(() => COMPETITIONS.filter((c) => sport === 'all' || c.sport === sport), [sport]);
-  const compOptions = [{ id: 'all', label: 'Toutes' }, ...comps.map((c) => ({ id: c.id, label: c.short }))];
-  const activeComp = comps.some((c) => c.id === comp) ? comp : 'all';
-
-  const visible: Match[] = useMemo(() => {
-    if (state.status !== 'ready') return [];
-    return state.matches.filter((m) => {
-      const c = COMPETITIONS.find((x) => x.id === m.competitionId);
-      if (!c) return false;
-      if (sport !== 'all' && c.sport !== sport) return false;
-      if (activeComp !== 'all' && c.id !== activeComp) return false;
-      return true;
-    });
-  }, [state, sport, activeComp]);
+  // Pastilles : championnats de clubs + « Les Bleus » (toutes les compétitions de l'équipe de France du sport choisi)
+  const clubComps = useMemo(() => COMPETITIONS.filter((c) => (sport === 'all' || c.sport === sport) && !isNational(c)), [sport]);
+  const hasBleus = sport === 'football';
+  const compOptions = [{ id: 'all', label: 'Toutes' }, ...clubComps.map((c) => ({ id: c.id, label: c.short })), ...(hasBleus ? [{ id: 'bleus', label: 'Les Bleus' }] : [])];
+  const activeComp = compOptions.some((o) => o.id === comp) ? comp : 'all';
+  const showChips = sport === 'football';
 
   const matchesFilter = (m: Match) => {
     const c = COMPETITIONS.find((x) => x.id === m.competitionId);
-    return !!c && (sport === 'all' || c.sport === sport) && (activeComp === 'all' || c.id === activeComp);
+    if (!c) return false;
+    if (sport !== 'all' && c.sport !== sport) return false;
+    if (activeComp === 'bleus') return isNational(c);
+    return activeComp === 'all' || c.id === activeComp;
   };
+  const visible: Match[] = useMemo(() => (state.status === 'ready' ? state.matches.filter(matchesFilter) : []), [state, sport, activeComp]);
   const upcomingNext = (upcomingAll ?? []).filter(matchesFilter);
-  const franceRugby = upcomingNext.filter((m) => COMPETITIONS.find((c) => c.id === m.competitionId)?.sport === 'rugby').slice(0, 3);
-  const nextFootball = upcomingNext.filter((m) => COMPETITIONS.find((c) => c.id === m.competitionId)?.sport === 'football').slice(0, 8);
+  const isFrance = (m: Match) => {
+    const c = COMPETITIONS.find((x) => x.id === m.competitionId);
+    return !!c && isNational(c);
+  };
+  const franceNext = upcomingNext.filter(isFrance).slice(0, 4);
+  const nextClubs = upcomingNext.filter((m) => !isFrance(m)).slice(0, 8);
   const live = visible.filter((m) => m.status === 'live');
   const upcoming = visible.filter((m) => m.status === 'scheduled' || m.status === 'postponed');
   const finished = visible.filter((m) => m.status === 'finished');
@@ -104,7 +103,7 @@ export function Today() {
 
         <div class="filters">
           <Segmented<SportFilter> label="Sport" value={sport} onChange={setSport} options={[{ id: 'all', label: 'Tout' }, ...SPORTS.map((s) => ({ id: s.id as SportFilter, label: s.label }))]} />
-          {sport !== 'all' && <Chips value={activeComp} options={compOptions} onChange={setComp} />}
+          {showChips && <Chips value={activeComp} options={compOptions} onChange={setComp} />}
         </div>
 
         <div key={dayKey + sport + activeComp + state.status} class="fade-in">
@@ -133,14 +132,14 @@ export function Today() {
               {finished.map((m) => <CompactCard key={m.id} m={m} />)}
             </Section>
           )}
-          {state.status === 'ready' && franceRugby.length > 0 && (
-            <Section title="XV de France · à venir">
-              {franceRugby.map((m) => <CompactCard key={m.id} m={m} withDate />)}
+          {state.status === 'ready' && franceNext.length > 0 && (
+            <Section title="Équipe de France · à venir">
+              {franceNext.map((m) => <CompactCard key={m.id} m={m} withDate />)}
             </Section>
           )}
-          {state.status === 'ready' && nextFootball.length > 0 && (
+          {state.status === 'ready' && nextClubs.length > 0 && (
             <Section title="Prochains matchs">
-              {nextFootball.map((m) => <CompactCard key={m.id} m={m} withDate />)}
+              {nextClubs.map((m) => <CompactCard key={m.id} m={m} withDate />)}
             </Section>
           )}
         </div>

@@ -1,5 +1,6 @@
 import type { Competition, Match, MatchProvider, MatchStatus, Team } from '../types';
 import { COMPETITIONS } from '../config/competitions';
+import { frenchName } from '../config/teamNames';
 import { addDays, dayKeyOf } from '../lib/date';
 
 /**
@@ -29,8 +30,9 @@ interface EspnEvent {
   competitions: { competitors: EspnCompetitor[] }[];
 }
 
-const toTeam = (t: EspnTeam): Team => {
-  const long = t.displayName.length > 20 && t.shortDisplayName ? t.shortDisplayName : t.displayName;
+const toTeam = (t: EspnTeam, national: boolean): Team => {
+  const base = t.displayName.length > 20 && t.shortDisplayName ? t.shortDisplayName : t.displayName;
+  const long = national ? frenchName(base) : base;
   // Un écusson noir disparaît sur le verre sombre : on préfère la couleur alternative.
   const dark = (hex?: string) => !hex || parseInt(hex, 16) < 0x202020;
   const color = dark(t.color) ? (dark(t.alternateColor) ? undefined : t.alternateColor) : t.color;
@@ -66,8 +68,8 @@ function normalize(e: EspnEvent, comp: Competition): Match | null {
     kickoff: new Date(e.date).toISOString(),
     status,
     clock: status === 'live' ? toClock(e) : undefined,
-    home: toTeam(home.team),
-    away: toTeam(away.team),
+    home: toTeam(home.team, !!comp.onlyTeams),
+    away: toTeam(away.team, !!comp.onlyTeams),
     homeScore: num(home.score),
     awayScore: num(away.score),
   };
@@ -98,10 +100,10 @@ export const espnProvider: MatchProvider = {
   },
 
   async getUpcoming(signal) {
-    // Foot : sans paramètre de date, ESPN renvoie la journée en cours / la prochaine de chaque ligue.
-    // Rugby : on lit l'année entière (ESPN accepte `dates=AAAA`) et on garde les matchs de la France.
+    // ESPN accepte `dates=AAAA` (année entière) ou `dates=AAAAMMJJ`, mais pas de plage de dates.
     const year = new Date().getFullYear();
-    const jobs = COMPETITIONS.flatMap((c) => (c.sport === 'rugby' ? [year, year + 1].map((y) => fetchScoreboard(c, `?dates=${y}&limit=500`, signal)) : [fetchScoreboard(c, '', signal)]));
+    // Équipes nationales (France) : on lit l'année entière. Clubs : la journée en cours / la prochaine.
+    const jobs = COMPETITIONS.flatMap((c) => (c.onlyTeams ? [year, year + 1].map((y) => fetchScoreboard(c, `?dates=${y}&limit=800`, signal)) : [fetchScoreboard(c, '', signal)]));
     const results = await Promise.allSettled(jobs);
     const ok = results.filter((r): r is PromiseFulfilledResult<Match[]> => r.status === 'fulfilled');
     if (ok.length === 0 && results.length > 0) throw (results[0] as PromiseRejectedResult).reason;
