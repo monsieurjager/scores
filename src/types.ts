@@ -38,4 +38,6 @@ export interface Competition {
 export interface MatchProvider {
   /** `only` : ne recharger que ces compétitions (rafraîchissement live). */
   getMatches(dayKey: string, signal?: AbortSignal, only?: string[]): Promise<Match[]>;
+  /** Prochains matchs à venir (toutes compétitions suivies), triés par date. */
+  getUpcoming(signal?: AbortSignal): Promise<Match[]>;
 }

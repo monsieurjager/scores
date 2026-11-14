@@ -15,7 +15,7 @@ export const COMPETITIONS: Competition[] = [
   { id: 'c4', sport: 'football', name: 'Ligue Conférence', short: 'C4', espn: { sport: 'soccer', league: 'uefa.europa.conf' } },
   { id: 'six', sport: 'rugby', name: 'Six Nations', short: 'Six Nations', espn: { sport: 'rugby', league: '180659' }, onlyTeams: ['FRA'] },
   { id: 'tests', sport: 'rugby', name: 'Tests internationaux', short: 'Tests', espn: { sport: 'rugby', league: '289234' }, onlyTeams: ['FRA'] },
-  { id: 'rwc', sport: 'rugby', name: 'Coupe du monde', short: 'Coupe du monde', espn: { sport: 'rugby', league: '164205' }, onlyTeams: ['FRA'] },
+  { id: 'rwc', sport: 'rugby', name: 'Coupe du monde', short: 'Mondial', espn: { sport: 'rugby', league: '164205' }, onlyTeams: ['FRA'] },
 ];
 
 export const SPORTS = [

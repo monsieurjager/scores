@@ -2,7 +2,7 @@ import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import type { Match, Team } from '../types';
 import { competitionById } from '../config/competitions';
-import { formatTime } from '../lib/date';
+import { formatShortDate, formatTime } from '../lib/date';
 import { IconBall, IconWarn } from './icons';
 
 export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string }) {
@@ -76,7 +76,7 @@ export function LiveCard({ m }: { m: Match }) {
 }
 
 /** Carte compacte : à venir (heure à droite) ou terminé (scores à droite). */
-export function CompactCard({ m }: { m: Match }) {
+export function CompactCard({ m, withDate = false }: { m: Match; withDate?: boolean }) {
   const comp = competitionById(m.competitionId);
   const s = scoreOf(m);
   const done = m.status === 'finished';
@@ -101,10 +101,12 @@ export function CompactCard({ m }: { m: Match }) {
           <span class="meta-main">Terminé</span>
         ) : m.status === 'postponed' ? (
           <span class="meta-main">Reporté</span>
+        ) : withDate ? (
+          <span class="meta-main date">{formatShortDate(m.kickoff)}</span>
         ) : (
           <span class="meta-main tnum">{formatTime(m.kickoff)}</span>
         )}
-        <span class="muted">{comp?.name}</span>
+        <span class="muted">{withDate ? `${formatTime(m.kickoff)} · ${comp?.short ?? ''}` : comp?.name}</span>
       </div>
     </li>
   );

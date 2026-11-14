@@ -34,3 +34,11 @@ export function dayLong(key: string): string {
   );
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+const shortFmt = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
+const shortYearFmt = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' });
+/** « sam. 21 nov. » — avec l'année si ce n'est pas l'année en cours. */
+export function formatShortDate(iso: string): string {
+  const d = new Date(iso);
+  return d.getFullYear() === new Date().getFullYear() ? shortFmt.format(d) : shortYearFmt.format(d);
+}

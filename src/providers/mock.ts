@@ -97,4 +97,14 @@ export const mockProvider: MatchProvider = {
     if (q.has('empty')) return [];
     return build(dayKey);
   },
+
+  async getUpcoming() {
+    await new Promise((r) => setTimeout(r, 400));
+    const day = (n: number, h: number) => new Date(Date.now() + n * 86_400_000 + h * 3_600_000).toISOString();
+    return [
+      { id: 'u1', competitionId: 'l1', kickoff: day(6, 3), status: 'scheduled', home: FIXTURES[0][1], away: FIXTURES[0][2] },
+      { id: 'u2', competitionId: 'pl', kickoff: day(7, 5), status: 'scheduled', home: FIXTURES[3][1], away: FIXTURES[3][2] },
+      { id: 'u3', competitionId: 'tests', kickoff: day(8, 6), status: 'scheduled', home: FIXTURES[11][1], away: FIXTURES[11][2] },
+    ] as Match[];
+  },
 };

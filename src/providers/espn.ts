@@ -73,25 +73,41 @@ function normalize(e: EspnEvent, comp: Competition): Match | null {
   };
 }
 
-async function fetchScoreboard(comp: Competition, dayKey: string, signal?: AbortSignal): Promise<Match[]> {
-  const url = `${BASE}/${comp.espn.sport}/${comp.espn.league}/scoreboard?dates=${dayKey.replace(/-/g, '')}`;
+async function fetchScoreboard(comp: Competition, query: string, signal?: AbortSignal): Promise<Match[]> {
+  const url = `${BASE}/${comp.espn.sport}/${comp.espn.league}/scoreboard${query}`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`ESPN ${comp.id}: HTTP ${res.status}`);
   const json = (await res.json()) as { events?: EspnEvent[] };
   return (json.events ?? []).map((e) => normalize(e, comp)).filter((m): m is Match => m !== null);
 }
 
+const byDay = (comp: Competition, dayKey: string, signal?: AbortSignal) => fetchScoreboard(comp, `?dates=${dayKey.replace(/-/g, '')}`, signal);
+
 export const espnProvider: MatchProvider = {
   async getMatches(dayKey, signal, only) {
     const comps = COMPETITIONS.filter((c) => !only || only.includes(c.id));
     // ESPN découpe les jours à l'heure de la côte est des États-Unis : pour le rugby
     // (matchs tôt le matin à Paris, dans l'hémisphère sud) on lit aussi la veille.
-    const jobs = comps.flatMap((c) => (c.sport === 'rugby' ? [addDays(dayKey, -1), dayKey] : [dayKey]).map((d) => fetchScoreboard(c, d, signal)));
+    const jobs = comps.flatMap((c) => (c.sport === 'rugby' ? [addDays(dayKey, -1), dayKey] : [dayKey]).map((d) => byDay(c, d, signal)));
     const results = await Promise.allSettled(jobs);
     const ok = results.filter((r): r is PromiseFulfilledResult<Match[]> => r.status === 'fulfilled');
     if (ok.length === 0 && results.length > 0) throw (results[0] as PromiseRejectedResult).reason;
     const byId = new Map<string, Match>();
     for (const r of ok) for (const m of r.value) if (dayKeyOf(m.kickoff) === dayKey) byId.set(m.id, m);
+    return [...byId.values()].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+  },
+
+  async getUpcoming(signal) {
+    // Foot : sans paramètre de date, ESPN renvoie la journée en cours / la prochaine de chaque ligue.
+    // Rugby : on lit l'année entière (ESPN accepte `dates=AAAA`) et on garde les matchs de la France.
+    const year = new Date().getFullYear();
+    const jobs = COMPETITIONS.flatMap((c) => (c.sport === 'rugby' ? [year, year + 1].map((y) => fetchScoreboard(c, `?dates=${y}&limit=500`, signal)) : [fetchScoreboard(c, '', signal)]));
+    const results = await Promise.allSettled(jobs);
+    const ok = results.filter((r): r is PromiseFulfilledResult<Match[]> => r.status === 'fulfilled');
+    if (ok.length === 0 && results.length > 0) throw (results[0] as PromiseRejectedResult).reason;
+    const now = Date.now();
+    const byId = new Map<string, Match>();
+    for (const r of ok) for (const m of r.value) if (m.status === 'scheduled' && new Date(m.kickoff).getTime() > now) byId.set(m.id, m);
     return [...byId.values()].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   },
 };

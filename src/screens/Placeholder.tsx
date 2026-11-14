@@ -3,7 +3,7 @@ import { IconStar, IconSliders } from '../components/icons';
 export function Placeholder({ kind }: { kind: 'favoris' | 'reglages' }) {
   const fav = kind === 'favoris';
   return (
-    <main class="screen">
+    <main class="screen screen-plain">
       <div class="large-title">
         <h1>{fav ? 'Favoris' : 'Réglages'}</h1>
       </div>

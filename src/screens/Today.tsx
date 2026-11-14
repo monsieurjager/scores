@@ -3,6 +3,7 @@ import type { Match } from '../types';
 import { COMPETITIONS, SPORTS } from '../config/competitions';
 import { addDays, dayKeyOf, dayLabel, dayLong, isRelativeDay, todayKey } from '../lib/date';
 import { useMatches } from '../hooks/useMatches';
+import { useUpcoming } from '../hooks/useUpcoming';
 import { useStored } from '../hooks/useStored';
 import { Chips, CompactCard, Empty, LiveCard, Section, Segmented, Skeletons } from '../components/ui';
 import { IconCalendar, IconChevron } from '../components/icons';
@@ -21,6 +22,7 @@ export function Today() {
   const [comp, setComp] = useStored<string>('filter.comp', 'all');
   const [scrolled, setScrolled] = useState(false);
   const { state, retry } = useMatches(dayKey);
+  const upcomingAll = useUpcoming(dayKey === todayKey());
   const dateInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -46,6 +48,13 @@ export function Today() {
     });
   }, [state, sport, activeComp]);
 
+  const matchesFilter = (m: Match) => {
+    const c = COMPETITIONS.find((x) => x.id === m.competitionId);
+    return !!c && (sport === 'all' || c.sport === sport) && (activeComp === 'all' || c.id === activeComp);
+  };
+  const upcomingNext = (upcomingAll ?? []).filter(matchesFilter);
+  const franceRugby = upcomingNext.filter((m) => COMPETITIONS.find((c) => c.id === m.competitionId)?.sport === 'rugby').slice(0, 3);
+  const nextFootball = upcomingNext.filter((m) => COMPETITIONS.find((c) => c.id === m.competitionId)?.sport === 'football').slice(0, 8);
   const live = visible.filter((m) => m.status === 'live');
   const upcoming = visible.filter((m) => m.status === 'scheduled' || m.status === 'postponed');
   const finished = visible.filter((m) => m.status === 'finished');
@@ -122,6 +131,16 @@ export function Today() {
           {finished.length > 0 && (
             <Section title="Terminés">
               {finished.map((m) => <CompactCard key={m.id} m={m} />)}
+            </Section>
+          )}
+          {state.status === 'ready' && franceRugby.length > 0 && (
+            <Section title="XV de France · à venir">
+              {franceRugby.map((m) => <CompactCard key={m.id} m={m} withDate />)}
+            </Section>
+          )}
+          {state.status === 'ready' && nextFootball.length > 0 && (
+            <Section title="Prochains matchs">
+              {nextFootball.map((m) => <CompactCard key={m.id} m={m} withDate />)}
             </Section>
           )}
         </div>

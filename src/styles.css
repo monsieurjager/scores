@@ -46,7 +46,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { background: var(--bg); }
+html { background: var(--bg); min-height: 100lvh; }
 body {
   margin: 0;
   background: var(--bg);
@@ -61,7 +61,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* Lueurs d'ambiance : donnent de la matière au verre (dégradés, donc très légers à afficher) */
 .ambient {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: var(--lo);
+  position: fixed; left: 0; right: 0; top: -160px; height: calc(100lvh + 320px); z-index: 0; pointer-events: none; opacity: var(--lo);
   background:
     radial-gradient(60vmax 60vmax at -15% -8%, var(--l1), transparent 62%),
     radial-gradient(55vmax 55vmax at 115% 42%, var(--l2), transparent 62%),
@@ -94,6 +94,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* ===== Écran ===== */
 .screen { max-width: 640px; margin: 0 auto; padding: 0 16px calc(110px + env(safe-area-inset-bottom)); }
+.screen-plain { padding-top: calc(env(safe-area-inset-top) + 64px); }
 .large-title { padding: 0 4px 16px; margin-top: -6px; }
 .large-title p { margin: 0; font-size: 13px; font-weight: 600; color: var(--sub); letter-spacing: .03em; }
 .large-title h1 { margin: 2px 0 0; font-size: 38px; line-height: 1.05; font-weight: 800; letter-spacing: -0.035em; }
@@ -137,7 +138,8 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .card-compact { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; border-radius: 24px; padding: 14px 18px; }
 .card-compact .team-name { flex: 1 1 auto; }
 .card-compact .lines { gap: 6px; }
-.meta { text-align: right; display: grid; gap: 2px; justify-items: end; font-size: 12px; max-width: 120px; }
+.meta { text-align: right; display: grid; gap: 2px; justify-items: end; font-size: 12px; max-width: 140px; }
+.meta-main.date { font-size: 16px; white-space: nowrap; }
 .meta .muted { line-height: 1.2; }
 .meta-main { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
 .card-compact:has(.score) .meta-main { font-size: 13px; font-weight: 600; color: var(--sub); }
@@ -155,7 +157,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .skeleton-line.short { width: 56%; }
 .skeleton-time { width: 54px; height: 26px; }
 
-.empty { text-align: center; padding: 64px 24px; color: var(--sub); }
+.empty { text-align: center; padding: 40px 24px; color: var(--sub); }
 .empty-icon { display: inline-grid; margin-bottom: 12px; opacity: .7; }
 .empty h2 { margin: 0 0 6px; font-size: 22px; font-weight: 700; color: var(--fg); letter-spacing: -.02em; }
 .empty p { margin: 0 auto 20px; max-width: 280px; font-size: 15px; }
