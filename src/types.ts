@@ -10,7 +10,7 @@ export interface Team {
   color?: string;
 }
 
-export type EventKind = 'goal' | 'penalty' | 'owngoal' | 'yellow' | 'red' | 'try' | 'conversion' | 'penaltygoal' | 'dropgoal' | 'penaltytry';
+export type EventKind = 'sub' | 'goal' | 'penalty' | 'owngoal' | 'yellow' | 'red' | 'try' | 'conversion' | 'penaltygoal' | 'dropgoal' | 'penaltytry';
 
 /** Fait de match : but, carton, essai… */
 export interface MatchEvent {
@@ -21,6 +21,40 @@ export interface MatchEvent {
   teamId: string; // équipe créditée
   player?: string;
   points: number; // 0 pour un carton
+  /** Remplacement : joueur sorti (`player` est le joueur entrant). */
+  out?: string;
+}
+
+export interface SummaryStat {
+  key: string;
+  label: string;
+  home: number;
+  away: number;
+  unit?: '%';
+}
+
+export interface LineupPlayer {
+  id: string;
+  name: string;
+  number: string;
+  position?: string;
+  subbedIn: boolean;
+  subbedOut: boolean;
+}
+
+export interface Lineup {
+  formation?: string;
+  starters: LineupPlayer[];
+  bench: LineupPlayer[];
+}
+
+/** Compléments du détail : statistiques, compositions, remplacements, stade. */
+export interface MatchSummary {
+  venue?: string;
+  attendance?: number;
+  stats: SummaryStat[];
+  lineups?: { home: Lineup; away: Lineup };
+  subs: MatchEvent[];
 }
 
 export interface StandingRow {
@@ -75,6 +109,8 @@ export interface MatchProvider {
   getMatches(dayKey: string, signal?: AbortSignal, only?: string[]): Promise<Match[]>;
   /** Prochains matchs à venir (toutes compétitions suivies), triés par date. */
   getUpcoming(signal?: AbortSignal): Promise<Match[]>;
+  /** Statistiques, compositions et remplacements d'un match (1 appel). */
+  getSummary(comp: Competition, matchId: string, signal?: AbortSignal): Promise<MatchSummary | null>;
   /** Classement de la compétition (le groupe qui contient ces équipes), ou null s'il n'existe pas. */
   getStandings(comp: Competition, teamIds: string[], signal?: AbortSignal): Promise<StandingsTable | null>;
   /** Équipes proposées dans le sélecteur de favoris. */

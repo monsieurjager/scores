@@ -1,7 +1,8 @@
-import type { Competition, EventKind, Match, MatchEvent, MatchProvider, MatchStatus, StandingRow, StandingsTable, Team, TeamEntry } from '../types';
+import type { Competition, EventKind, Lineup, LineupPlayer, Match, MatchEvent, MatchProvider, MatchSummary, SummaryStat, MatchStatus, StandingRow, StandingsTable, Team, TeamEntry } from '../types';
 import teamsData from '../data/teams.json';
 import { COMPETITIONS } from '../config/competitions';
 import { frenchName } from '../config/teamNames';
+import { enabledCompetitions } from '../lib/settings';
 import { addDays, dayKeyOf } from '../lib/date';
 
 /**
@@ -133,7 +134,7 @@ const byDay = (comp: Competition, dayKey: string, signal?: AbortSignal, fresh = 
 
 export const espnProvider: MatchProvider = {
   async getMatches(dayKey, signal, only) {
-    const comps = COMPETITIONS.filter((c) => !only || only.includes(c.id));
+    const comps = enabledCompetitions().filter((c) => !only || only.includes(c.id));
     // ESPN découpe les jours à l'heure de la côte est des États-Unis : pour le rugby
     // (matchs tôt le matin à Paris, dans l'hémisphère sud) on lit aussi la veille.
     const jobs = comps.flatMap((c) => (c.sport === 'rugby' ? [addDays(dayKey, -1), dayKey] : [dayKey]).map((d) => byDay(c, d, signal, !!only)));
@@ -149,7 +150,7 @@ export const espnProvider: MatchProvider = {
     // ESPN accepte `dates=AAAA` (année entière) ou `dates=AAAAMMJJ`, mais pas de plage de dates.
     const year = new Date().getFullYear();
     // Équipes nationales (France) : on lit l'année entière. Clubs : la journée en cours / la prochaine.
-    const jobs = COMPETITIONS.flatMap((c) => (c.onlyTeams ? [year, year + 1].map((y) => fetchScoreboard(c, `?dates=${y}&limit=800`, signal)) : [fetchScoreboard(c, '', signal)]));
+    const jobs = enabledCompetitions().flatMap((c) => (c.onlyTeams ? [year, year + 1].map((y) => fetchScoreboard(c, `?dates=${y}&limit=800`, signal)) : [fetchScoreboard(c, '', signal)]));
     const results = await Promise.allSettled(jobs);
     const ok = results.filter((r): r is PromiseFulfilledResult<Match[]> => r.status === 'fulfilled');
     if (ok.length === 0 && results.length > 0) throw (results[0] as PromiseRejectedResult).reason;
@@ -164,6 +165,67 @@ export const espnProvider: MatchProvider = {
     return (teamsData as { sport: 'football' | 'rugby'; id: string; name: string; logo?: string; color?: string; national: boolean }[]).map(
       (t): TeamEntry => ({ sport: t.sport, team: { id: t.id, name: t.national ? frenchName(t.name) : t.name, short: t.name.slice(0, 3).toUpperCase(), logo: t.logo, color: t.color } }),
     );
+  },
+
+  async getSummary(comp, matchId, signal) {
+    const eid = matchId.slice(comp.id.length + 1);
+    const res = await fetch(`${BASE}/${comp.espn.sport}/${comp.espn.league}/summary?event=${eid}`, { signal, cache: 'no-store' });
+    if (!res.ok) return null;
+    type Ath = { id: string; displayName?: string; shortName?: string };
+    const j = (await res.json()) as {
+      gameInfo?: { venue?: { fullName?: string; address?: { city?: string } }; attendance?: number };
+      boxscore?: { teams?: { homeAway: 'home' | 'away'; statistics?: { name: string; displayValue: string }[] }[] };
+      rosters?: { homeAway: 'home' | 'away'; formation?: string; roster?: { starter?: boolean; jersey?: string; subbedIn?: boolean; subbedOut?: boolean; position?: { abbreviation?: string }; athlete: Ath }[] }[];
+      keyEvents?: { id: string; type: { text: string }; clock?: { value?: number; displayValue?: string }; team?: { id: string }; participants?: { athlete: Ath }[] }[];
+    };
+
+    // Statistiques (football : possession, tirs, etc.)
+    const val = (side: 'home' | 'away', name: string) => {
+      const t = j.boxscore?.teams?.find((x) => x.homeAway === side);
+      const v = t?.statistics?.find((x) => x.name === name)?.displayValue;
+      return v == null || v === '' ? null : Number(v);
+    };
+    const DEFS: [string, string, '%'?][] = [['possessionPct', 'Possession', '%'], ['totalShots', 'Tirs'], ['shotsOnTarget', 'Tirs cadrés'], ['wonCorners', 'Corners'], ['foulsCommitted', 'Fautes'], ['offsides', 'Hors-jeu'], ['saves', 'Arrêts']];
+    const stats: SummaryStat[] = [];
+    for (const [key, label, unit] of DEFS) {
+      const h = val('home', key);
+      const a = val('away', key);
+      if (h != null && a != null && Number.isFinite(h) && Number.isFinite(a)) stats.push({ key, label, home: Math.round(h), away: Math.round(a), unit });
+    }
+    const pct = (side: 'home' | 'away') => {
+      const ok = val(side, 'accuratePasses');
+      const all = val(side, 'totalPasses');
+      return ok != null && all ? Math.round((ok / all) * 100) : null;
+    };
+    const ph = pct('home');
+    const pa = pct('away');
+    if (ph != null && pa != null) stats.splice(3, 0, { key: 'passes', label: 'Passes réussies', home: ph, away: pa, unit: '%' });
+
+    // Compositions
+    const nameOf = (a: Ath) => a.shortName ?? a.displayName ?? '—';
+    const lineup = (side: 'home' | 'away'): Lineup | null => {
+      const r = j.rosters?.find((x) => x.homeAway === side);
+      if (!r?.roster?.length) return null;
+      const players = r.roster.map((p): LineupPlayer & { starter: boolean } => ({ id: p.athlete.id, name: nameOf(p.athlete), number: p.jersey ?? '', position: p.position?.abbreviation, subbedIn: !!p.subbedIn, subbedOut: !!p.subbedOut, starter: !!p.starter }));
+      return { formation: r.formation, starters: players.filter((p) => p.starter), bench: players.filter((p) => !p.starter) };
+    };
+    const home = lineup('home');
+    const away = lineup('away');
+
+    // Remplacements (football) pour la chronologie
+    const subs: MatchEvent[] = (j.keyEvents ?? [])
+      .filter((k) => k.type.text === 'Substitution' && k.team)
+      .map((k) => ({ id: `sub-${k.id}`, kind: 'sub' as const, clock: k.clock?.displayValue?.replace("'+", '+') ?? '', seconds: k.clock?.value ?? 0, teamId: k.team!.id, player: k.participants?.[0] ? nameOf(k.participants[0].athlete) : undefined, out: k.participants?.[1] ? nameOf(k.participants[1].athlete) : undefined, points: 0 }));
+
+    const v = j.gameInfo?.venue;
+    const summary: MatchSummary = {
+      venue: v?.fullName ? [v.fullName, v.address?.city].filter(Boolean).join(', ') : undefined,
+      attendance: j.gameInfo?.attendance && j.gameInfo.attendance > 0 ? j.gameInfo.attendance : undefined,
+      stats,
+      lineups: home && away ? { home, away } : undefined,
+      subs,
+    };
+    return summary;
   },
 
   async getStandings(comp, teamIds, signal) {

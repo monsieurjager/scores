@@ -1,0 +1,97 @@
+import { useState } from 'preact/hooks';
+import { COMPETITIONS, isNational } from '../config/competitions';
+import { resetSettings, updateSettings, useSettings, type Settings as S, type ThemeSetting } from '../lib/settings';
+import { BUILD_DATE, checkForUpdate, clearOfflineCache } from '../lib/update';
+import { useOnline } from '../hooks/useOnline';
+import { useFavorites } from '../lib/favorites';
+import { Section, Segmented } from '../components/ui';
+
+function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (v: boolean) => void }) {
+  return (
+    <button class={`switch${on ? ' on' : ''}`} role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}>
+      <span />
+    </button>
+  );
+}
+
+const GROUPS: { title: string; match: (c: (typeof COMPETITIONS)[number]) => boolean }[] = [
+  { title: 'Foot · clubs', match: (c) => c.sport === 'football' && !isNational(c) },
+  { title: 'Équipe de France · foot', match: (c) => c.sport === 'football' && isNational(c) },
+  { title: 'XV de France · rugby', match: (c) => c.sport === 'rugby' },
+];
+
+export function Settings() {
+  const st = useSettings();
+  const online = useOnline();
+  const { favs } = useFavorites();
+  const [msg, setMsg] = useState('');
+  const toggleComp = (id: string, on: boolean) => updateSettings({ hiddenComps: on ? st.hiddenComps.filter((x) => x !== id) : [...st.hiddenComps, id] });
+
+  return (
+    <main class="screen screen-plain">
+      <div class="large-title">
+        <h1>Réglages</h1>
+      </div>
+
+      <Section title="Apparence">
+        <li style={{ listStyle: 'none' }}>
+          <Segmented<ThemeSetting> label="Thème" value={st.theme} onChange={(theme) => updateSettings({ theme })} options={[{ id: 'auto', label: 'Auto' }, { id: 'light', label: 'Clair' }, { id: 'dark', label: 'Sombre' }]} />
+        </li>
+      </Section>
+
+      <Section title="Rafraîchissement en direct">
+        <li style={{ listStyle: 'none' }}>
+          <Segmented<string> label="Intervalle" value={String(st.refreshSec)} onChange={(v) => updateSettings({ refreshSec: Number(v) as S['refreshSec'] })} options={[{ id: '5', label: '5 s' }, { id: '10', label: '10 s' }, { id: '30', label: '30 s' }, { id: '60', label: '1 min' }]} />
+          <p class="hint">Seulement quand un match est en cours. ESPN garde ses réponses quelques secondes : descendre sous 5 s n'apporte rien.</p>
+        </li>
+      </Section>
+
+      {GROUPS.map((g) => (
+        <Section key={g.title} title={g.title}>
+          {COMPETITIONS.filter(g.match).map((c) => (
+            <li class="card setting-row" key={c.id}>
+              <span>{c.name}</span>
+              <Switch on={!st.hiddenComps.includes(c.id)} label={`Suivre ${c.name}`} onChange={(on) => toggleComp(c.id, on)} />
+            </li>
+          ))}
+        </Section>
+      ))}
+
+      <Section title="Application">
+        <li class="card setting-row">
+          <span>Favoris</span>
+          <span class="muted">{favs.length} équipe{favs.length > 1 ? 's' : ''}</span>
+        </li>
+        <li class="card setting-row">
+          <span>Connexion</span>
+          <span class="muted">{online ? 'En ligne' : 'Hors ligne'}</span>
+        </li>
+        <li class="card setting-row">
+          <span>Version</span>
+          <span class="muted">{BUILD_DATE ? BUILD_DATE.toLocaleString('fr-FR', { timeZone: 'Europe/Paris', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'développement'}</span>
+        </li>
+        <li class="card setting-actions">
+          <button
+            class="link-btn"
+            onClick={async () => {
+              setMsg('Recherche…');
+              const r = await checkForUpdate(true);
+              setMsg(r === 'current' ? 'Vous avez la dernière version.' : r === 'error' ? 'Impossible de vérifier (hors ligne ?).' : 'Mise à jour en cours…');
+            }}
+          >
+            Rechercher une mise à jour
+          </button>
+          <button class="link-btn" onClick={async () => { await clearOfflineCache(); setMsg('Cache hors ligne vidé.'); }}>
+            Vider le cache hors ligne
+          </button>
+          <button class="link-btn" onClick={() => { resetSettings(); setMsg('Réglages réinitialisés.'); }}>
+            Réinitialiser les réglages
+          </button>
+          {msg && <p class="hint" role="status">{msg}</p>}
+        </li>
+      </Section>
+
+      <p class="hint footer-note">Données : ESPN (API publique non officielle). Aucune donnée personnelle n'est envoyée : favoris et réglages restent sur cet appareil.</p>
+    </main>
+  );
+}

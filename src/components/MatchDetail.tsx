@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import type { Match, MatchEvent, StandingsTable } from '../types';
+import type { Lineup, Match, MatchEvent, MatchSummary, StandingsTable } from '../types';
 import { competitionById } from '../config/competitions';
 import { formatShortDate, formatTime } from '../lib/date';
 import { halfTimeScore } from '../lib/matchStats';
-import { useMatch } from '../lib/matchStore';
+import { lastUpdateAt, useMatch } from '../lib/matchStore';
+import { useSummary } from '../hooks/useSummary';
 import { useStandings } from '../hooks/useStandings';
-import { Crest, Section } from './ui';
+import { Crest, Section, Segmented } from './ui';
 import { IconBall } from './icons';
 
 const RUGBY_LABEL: Record<string, string> = { try: 'Essai', conversion: 'Transformation', penaltygoal: 'Pénalité', dropgoal: 'Drop', penaltytry: 'Essai de pénalité' };
@@ -13,6 +14,7 @@ const CARD_LABEL = { yellow: 'Carton jaune', red: 'Carton rouge' } as const;
 
 function eventNote(e: MatchEvent): string {
   switch (e.kind) {
+    case 'sub': return e.out ? `Remplace ${e.out}` : 'Remplacement';
     case 'penalty': return 'But sur penalty';
     case 'owngoal': return 'But contre son camp';
     case 'goal': return 'But';
@@ -22,6 +24,14 @@ function eventNote(e: MatchEvent): string {
 }
 
 function EventIcon({ e }: { e: MatchEvent }) {
+  if (e.kind === 'sub')
+    return (
+      <span class="tl-ico" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 4v14M3.5 14.5L7 18l3.5-3.5M17 20V6M13.5 9.5L17 6l3.5 3.5" />
+        </svg>
+      </span>
+    );
   if (e.kind === 'yellow' || e.kind === 'red') return <span class={`tl-ico ${e.kind}`} aria-hidden="true" />;
   if (e.points > 0 && (e.kind === 'try' || e.kind === 'conversion' || e.kind === 'penaltygoal' || e.kind === 'dropgoal' || e.kind === 'penaltytry')) return <span class="tl-ico" aria-hidden="true">+{e.points}</span>;
   return (
@@ -31,8 +41,7 @@ function EventIcon({ e }: { e: MatchEvent }) {
   );
 }
 
-function Timeline({ m }: { m: Match }) {
-  const events = m.events ?? [];
+function Timeline({ m, events }: { m: Match; events: MatchEvent[] }) {
   return (
     <div class="glass-panel">
       {events.map((e) => {
@@ -54,6 +63,64 @@ function Timeline({ m }: { m: Match }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function Stats({ summary }: { summary: MatchSummary }) {
+  return (
+    <div class="glass-panel stats">
+      {summary.stats.map((st) => {
+        const total = st.home + st.away || 1;
+        const hp = (st.home / total) * 100;
+        const unit = st.unit ?? '';
+        return (
+          <div class="stat" key={st.key}>
+            <div class="stat-line">
+              <span class={`tnum${st.home > st.away ? ' lead' : ''}`}>{st.home}{unit}</span>
+              <span class="stat-label">{st.label}</span>
+              <span class={`tnum${st.away > st.home ? ' lead' : ''}`}>{st.away}{unit}</span>
+            </div>
+            <div class="stat-bar" aria-hidden="true">
+              <span style={{ width: `${hp}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Lineups({ m, lineups }: { m: Match; lineups: { home: Lineup; away: Lineup } }) {
+  const [side, setSide] = useState<'home' | 'away'>('home');
+  const l = lineups[side];
+  const team = side === 'home' ? m.home : m.away;
+  const row = (p: Lineup['starters'][number]) => (
+    <li class="lu-row" key={p.id}>
+      <span class="lu-num tnum">{p.number}</span>
+      <span class="lu-name">{p.name}</span>
+      <span class="lu-meta">
+        {p.subbedOut ? 'Sorti' : p.subbedIn ? 'Entré' : ''}
+        {p.position ? <span class="lu-pos">{p.position}</span> : null}
+      </span>
+    </li>
+  );
+  return (
+    <div>
+      <Segmented<'home' | 'away'> label="Équipe" value={side} onChange={setSide} options={[{ id: 'home', label: m.home.name }, { id: 'away', label: m.away.name }]} />
+      <div class="glass-panel" style={{ marginTop: 12 }}>
+        <div class="lu-head">
+          <span>{team.name}</span>
+          {l.formation && <span class="tnum">{l.formation}</span>}
+        </div>
+        <ul class="lu-list">{l.starters.map(row)}</ul>
+        {l.bench.length > 0 && (
+          <>
+            <div class="lu-sub">Remplaçants</div>
+            <ul class="lu-list">{l.bench.map(row)}</ul>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -115,6 +182,8 @@ export function MatchDetail({ id, onClose }: { id: string; onClose: () => void }
   const comp = m ? competitionById(m.competitionId) : undefined;
   const ids = useMemo(() => (m ? [m.home.id, m.away.id] : []), [m?.home.id, m?.away.id]);
   const standings = useStandings(comp, ids);
+  const live0 = m?.status === 'live';
+  const summary = useSummary(comp, id, !!live0);
 
   // Fermeture à Échap ; on fige le défilement de la page derrière la feuille.
   useEffect(() => {
@@ -133,7 +202,9 @@ export function MatchDetail({ id, onClose }: { id: string; onClose: () => void }
   const done = m.status === 'finished';
   const hasScore = m.homeScore != null && m.awayScore != null;
   const ht = halfTimeScore(m, comp.sport);
-  const hasEvents = (m.events?.length ?? 0) > 0;
+  const events = [...(m.events ?? []), ...(summary?.subs ?? [])].sort((a, b) => a.seconds - b.seconds);
+  const hasEvents = events.length > 0;
+  const updatedAt = new Date(lastUpdateAt()).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   return (
     <div class="sheet" role="dialog" aria-modal="true" aria-label={`${m.home.name} contre ${m.away.name}`}>
@@ -169,6 +240,7 @@ export function MatchDetail({ id, onClose }: { id: string; onClose: () => void }
                   Mi-temps {ht.home} – {ht.away}
                 </div>
               )}
+              {live && lastUpdateAt() > 0 && <div class="ht-line tnum">Actualisé à {updatedAt}</div>}
             </div>
             <div class="detail-team">
               <Crest team={m.away} size={64} />
@@ -177,12 +249,34 @@ export function MatchDetail({ id, onClose }: { id: string; onClose: () => void }
           </div>
         </div>
 
+        {summary?.venue && (
+          <p class="venue">
+            {summary.venue}
+            {summary.attendance ? ` · ${summary.attendance.toLocaleString('fr-FR')} spectateurs` : ''}
+          </p>
+        )}
+
         <Section title={comp.sport === 'rugby' ? 'Essais, points et cartons' : 'Buts et cartons'}>
           {/* Section attend des <li> : on utilise un <li> unique */}
           <li style={{ listStyle: 'none' }}>
-            {hasEvents ? <Timeline m={m} /> : <div class="glass-panel note">{m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>}
+            {hasEvents ? <Timeline m={m} events={events} /> : <div class="glass-panel note">{m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>}
           </li>
         </Section>
+
+        {summary && summary.stats.length > 0 && (
+          <Section title="Statistiques">
+            <li style={{ listStyle: 'none' }}>
+              <Stats summary={summary} />
+            </li>
+          </Section>
+        )}
+        {summary?.lineups && (
+          <Section title="Compositions">
+            <li style={{ listStyle: 'none' }}>
+              <Lineups m={m} lineups={summary.lineups} />
+            </li>
+          </Section>
+        )}
 
         {standings === undefined && (
           <Section title="Classement">

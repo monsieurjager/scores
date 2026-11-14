@@ -118,4 +118,7 @@ export const mockProvider: MatchProvider = {
   async getStandings() {
     return null;
   },
+  async getSummary() {
+    return null;
+  },
 };

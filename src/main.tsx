@@ -3,10 +3,12 @@ import { useState } from 'preact/hooks';
 import './styles.css';
 import { Today } from './screens/Today';
 import { Favorites } from './screens/Favorites';
-import { Placeholder } from './screens/Placeholder';
 import { IconScores, IconSliders, IconStar } from './components/icons';
 import { MatchDetail } from './components/MatchDetail';
 import { openMatch, useOpenMatchId } from './lib/matchStore';
+import { Settings } from './screens/Settings';
+import { applyTheme } from './lib/settings';
+import { registerServiceWorker, startUpdateChecks } from './lib/update';
 
 type Tab = 'today' | 'favoris' | 'reglages';
 const TABS: { id: Tab; label: string; icon: (p: { filled?: boolean }) => preact.JSX.Element }[] = [
@@ -22,7 +24,7 @@ function App() {
     <>
       {tab === 'today' && <Today />}
       {tab === 'favoris' && <Favorites />}
-      {tab === 'reglages' && <Placeholder kind="reglages" />}
+      {tab === 'reglages' && <Settings />}
       {openId && <MatchDetail id={openId} onClose={() => openMatch(null)} />}
       <nav class="tabbar glass" aria-label="Navigation principale">
         {TABS.map((t) => (
@@ -36,4 +38,7 @@ function App() {
   );
 }
 
+applyTheme();
+registerServiceWorker();
+startUpdateChecks();
 render(<App />, document.getElementById('app')!);

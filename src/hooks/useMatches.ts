@@ -3,11 +3,11 @@ import type { Match } from '../types';
 import { provider } from '../providers';
 import { todayKey } from '../lib/date';
 import { publishMatches } from '../lib/matchStore';
+import { useSettings } from '../lib/settings';
 
 export type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; matches: Match[] };
 
-// ESPN garde ses réponses 1 à 9 s : descendre sous 5 s ne servirait à rien.
-const REFRESH_MS = 5_000;
+// Intervalle choisi dans les réglages (5 s par défaut : ESPN garde ses réponses 1 à 9 s, descendre plus bas ne servirait à rien).
 
 /** Compétitions qui ont besoin d'être rafraîchies : match en cours, ou coup d'envoi dépassé. */
 function activeCompetitions(matches: Match[]): string[] {
@@ -25,6 +25,7 @@ function activeCompetitions(matches: Match[]): string[] {
  */
 export function useMatches(dayKey: string) {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const { refreshSec } = useSettings();
   const abort = useRef<AbortController | undefined>(undefined);
 
   const load = useCallback(
@@ -59,7 +60,7 @@ export function useMatches(dayKey: string) {
     if (state.status !== 'ready' || dayKey !== todayKey()) return;
     const active = activeCompetitions(state.matches);
     if (active.length > 0) {
-      const id = setInterval(() => document.visibilityState === 'visible' && load(true, active), REFRESH_MS);
+      const id = setInterval(() => document.visibilityState === 'visible' && load(true, active), refreshSec * 1000);
       return () => clearInterval(id);
     }
     const next = state.matches
@@ -70,7 +71,7 @@ export function useMatches(dayKey: string) {
     if (!next) return;
     const id = setTimeout(() => load(true), Math.min(next - Date.now() - 60_000, 2 ** 31 - 1) + 1000);
     return () => clearTimeout(id);
-  }, [state, dayKey, load]);
+  }, [state, dayKey, load, refreshSec]);
 
   // Retour au premier plan : mise à jour immédiate si un match est en cours
   useEffect(() => {

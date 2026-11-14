@@ -8,7 +8,12 @@ import type { Match } from '../types';
 const matches = new Map<string, Match>();
 const subs = new Set<() => void>();
 
+let lastUpdate = 0;
+/** Heure de la dernière mise à jour reçue d'ESPN (ms). */
+export const lastUpdateAt = () => lastUpdate;
+
 export function publishMatches(list: Match[]) {
+  lastUpdate = Date.now();
   for (const m of list) matches.set(m.id, m);
   subs.forEach((f) => f());
 }

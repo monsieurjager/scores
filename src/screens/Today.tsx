@@ -6,6 +6,8 @@ import { useMatches } from '../hooks/useMatches';
 import { useUpcoming } from '../hooks/useUpcoming';
 import { useStored } from '../hooks/useStored';
 import { isFavMatch, useFavorites } from '../lib/favorites';
+import { enabledCompetitions, useSettings } from '../lib/settings';
+import { useOnline } from '../hooks/useOnline';
 import { Chips, CompactCard, Empty, LiveCard, Section, Segmented, Skeletons } from '../components/ui';
 import { IconCalendar, IconChevron } from '../components/icons';
 
@@ -25,6 +27,8 @@ export function Today() {
   const { state, retry } = useMatches(dayKey);
   const upcomingAll = useUpcoming(dayKey === todayKey());
   const { keys: favKeys } = useFavorites();
+  useSettings();
+  const online = useOnline();
   const dateInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -35,8 +39,9 @@ export function Today() {
   }, []);
 
   // Pastilles : championnats de clubs + « Les Bleus » (toutes les compétitions de l'équipe de France du sport choisi)
-  const clubComps = useMemo(() => COMPETITIONS.filter((c) => (sport === 'all' || c.sport === sport) && !isNational(c)), [sport]);
-  const hasBleus = sport === 'football';
+  const enabled = enabledCompetitions();
+  const clubComps = enabled.filter((c) => (sport === 'all' || c.sport === sport) && !isNational(c));
+  const hasBleus = sport === 'football' && enabled.some((c) => c.sport === 'football' && isNational(c));
   const compOptions = [{ id: 'all', label: 'Toutes' }, ...clubComps.map((c) => ({ id: c.id, label: c.short })), ...(hasBleus ? [{ id: 'bleus', label: 'Les Bleus' }] : [])];
   const activeComp = compOptions.some((o) => o.id === comp) ? comp : 'all';
   const showChips = sport === 'football';
@@ -104,6 +109,7 @@ export function Today() {
         <div class="large-title">
           {isRelativeDay(dayKey) && <p>{dayLong(dayKey).toUpperCase()}</p>}
           <h1>{dayLabel(dayKey)}</h1>
+          {!online && <span class="offline-pill">Hors ligne · dernières données enregistrées</span>}
         </div>
 
         <div class="filters">
