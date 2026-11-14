@@ -19,10 +19,13 @@ export function dayLabel(key: string): string {
   if (key === addDays(t, -1)) return 'Hier';
   if (key === addDays(t, 1)) return 'Demain';
   const [y, m, d] = key.split('-').map(Number);
-  return new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(
+  const s = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' }).format(
     new Date(Date.UTC(y, m - 1, d)),
   );
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+export const isRelativeDay = (key: string) => key === todayKey() || key === addDays(todayKey(), -1) || key === addDays(todayKey(), 1);
 
 export function dayLong(key: string): string {
   const [y, m, d] = key.split('-').map(Number);

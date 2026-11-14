@@ -2,7 +2,12 @@ import type { Match, MatchProvider, MatchStatus, Team } from '../types';
 import { dayKeyOf, todayKey } from '../lib/date';
 
 /** Données de démonstration (étape 1). Remplacées par ESPN à l'étape 5. */
-const t = (id: string, name: string, short: string): Team => ({ id, name, short });
+const ESPN: Record<string, [number, string]> = {
+  psg: [160, '004170'], om: [176, '2faee0'], ol: [167, 'dc241f'], asm: [174, 'e30613'], losc: [166, 'e2001a'], rcl: [175, 'ffd400'],
+  ars: [359, 'ef0107'], che: [363, '034694'], mci: [382, '6cabdd'], liv: [364, 'c8102e'], rma: [86, 'ffffff'], fcb: [83, 'a50044'],
+  int: [110, '0b3d91'], juv: [111, 'e8e8e8'], bay: [132, 'dc052d'], bvb: [124, 'fde100'], ben: [1929, 'e8112d'], ajx: [139, 'd2122e'],
+};
+const t = (id: string, name: string, short: string): Team => ({ id, name, short, logo: ESPN[id] ? `https://a.espncdn.com/i/teamlogos/soccer/500/${ESPN[id][0]}.png` : undefined, color: ESPN[id]?.[1] });
 
 const FIXTURES: [string, Team, Team][] = [
   ['l1', t('psg', 'Paris Saint-Germain', 'PSG'), t('om', 'Olympique de Marseille', 'OM')],

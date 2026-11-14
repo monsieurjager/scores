@@ -1,4 +1,4 @@
-import { IconStar, IconGear } from '../components/icons';
+import { IconStar, IconSliders } from '../components/icons';
 
 export function Placeholder({ kind }: { kind: 'favoris' | 'reglages' }) {
   const fav = kind === 'favoris';
@@ -8,7 +8,7 @@ export function Placeholder({ kind }: { kind: 'favoris' | 'reglages' }) {
         <h1>{fav ? 'Favoris' : 'Réglages'}</h1>
       </div>
       <div class="empty">
-        <div class="empty-icon">{fav ? <IconStar /> : <IconGear />}</div>
+        <div class="empty-icon">{fav ? <IconStar /> : <IconSliders />}</div>
         <h2>Bientôt disponible</h2>
         <p>{fav ? 'Choisis tes équipes : leurs matchs remonteront en premier.' : 'Les réglages arrivent dans une prochaine étape.'}</p>
       </div>

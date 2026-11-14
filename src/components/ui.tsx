@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { useState } from 'preact/hooks';
 import type { Match, Team } from '../types';
 import { competitionById } from '../config/competitions';
 import { formatTime } from '../lib/date';
@@ -7,7 +8,7 @@ import { IconBall, IconWarn } from './icons';
 export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string }) {
   const i = Math.max(0, options.findIndex((o) => o.id === value));
   return (
-    <div class="segmented" role="tablist" aria-label={label} style={{ '--n': options.length, '--i': i }}>
+    <div class="segmented glass" role="tablist" aria-label={label} style={{ '--n': options.length, '--i': i }}>
       <span class="segmented-thumb" />
       {options.map((o) => (
         <button key={o.id} role="tab" aria-selected={o.id === value} onClick={() => onChange(o.id)}>
@@ -30,51 +31,80 @@ export function Chips<T extends string>({ value, options, onChange }: { value: T
   );
 }
 
-function Crest({ team }: { team: Team }) {
-  return team.logo ? <img class="crest" src={team.logo} alt="" loading="lazy" /> : <span class="crest crest-fallback">{team.short.slice(0, 3)}</span>;
+function Crest({ team, size }: { team: Team; size: number }) {
+  const [broken, setBroken] = useState(false);
+  const style = { '--s': `${size}px` };
+  if (!team.logo || broken) {
+    return (
+      <span class="crest crest-fallback" style={style}>
+        {team.short.slice(0, 3)}
+      </span>
+    );
+  }
+  return <img class="crest" style={style} src={team.logo} width={size} height={size} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />;
 }
 
-export function MatchRow({ m }: { m: Match }) {
+const scoreOf = (m: Match) => (m.homeScore != null && m.awayScore != null ? ([m.homeScore, m.awayScore] as const) : null);
+
+/** Carte « grande » pour un match en direct, avec une lueur à la couleur de l'équipe à domicile. */
+export function LiveCard({ m }: { m: Match }) {
   const comp = competitionById(m.competitionId);
-  const live = m.status === 'live';
-  const done = m.status === 'finished';
-  const hasScore = m.homeScore != null && m.awayScore != null;
-  const homeWon = done && hasScore && m.homeScore! > m.awayScore!;
-  const awayWon = done && hasScore && m.awayScore! > m.homeScore!;
+  const s = scoreOf(m);
   return (
-    <li class="row">
-      <div class={`row-when${live ? ' is-live' : ''}`}>
-        {live ? (
-          <>
-            <span class="live-dot" />
-            <span class="tnum">{m.clock ?? 'LIVE'}</span>
-          </>
-        ) : done ? (
-          <span>Terminé</span>
-        ) : m.status === 'postponed' ? (
-          <span>Reporté</span>
-        ) : (
-          <span class="tnum">{formatTime(m.kickoff)}</span>
-        )}
+    <li class="card card-live" style={{ '--glow': m.home.color ? `#${m.home.color}` : 'transparent' }}>
+      <div class="card-head">
+        <span class="clock tnum">
+          <span class="live-dot" />
+          {m.clock}
+        </span>
+        <span class="muted">{comp?.name}</span>
       </div>
-      <div class="row-teams">
-        <div class={`team${awayWon ? ' dim' : ''}`}>
-          <Crest team={m.home} />
+      <div class="lines">
+        <div class="team big">
+          <Crest team={m.home} size={36} />
           <span class="team-name">{m.home.name}</span>
+          <span class="score tnum">{s?.[0]}</span>
+        </div>
+        <div class="team big">
+          <Crest team={m.away} size={36} />
+          <span class="team-name">{m.away.name}</span>
+          <span class="score tnum">{s?.[1]}</span>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/** Carte compacte : à venir (heure à droite) ou terminé (scores à droite). */
+export function CompactCard({ m }: { m: Match }) {
+  const comp = competitionById(m.competitionId);
+  const s = scoreOf(m);
+  const done = m.status === 'finished';
+  const homeWon = done && s != null && s[0] > s[1];
+  const awayWon = done && s != null && s[1] > s[0];
+  return (
+    <li class="card card-compact">
+      <div class="lines">
+        <div class={`team${awayWon ? ' dim' : ''}`}>
+          <Crest team={m.home} size={28} />
+          <span class="team-name">{m.home.name}</span>
+          {done && s && <span class={`score small tnum${awayWon ? ' dim' : ''}`}>{s[0]}</span>}
         </div>
         <div class={`team${homeWon ? ' dim' : ''}`}>
-          <Crest team={m.away} />
+          <Crest team={m.away} size={28} />
           <span class="team-name">{m.away.name}</span>
+          {done && s && <span class={`score small tnum${homeWon ? ' dim' : ''}`}>{s[1]}</span>}
         </div>
-        {comp && <div class="row-comp">{comp.name}</div>}
       </div>
-      <div class="row-score tnum">
-        {hasScore && (
-          <>
-            <span class={awayWon ? 'dim' : ''}>{m.homeScore}</span>
-            <span class={homeWon ? 'dim' : ''}>{m.awayScore}</span>
-          </>
+      <div class="meta">
+        {done ? (
+          <span class="meta-main">Terminé</span>
+        ) : m.status === 'postponed' ? (
+          <span class="meta-main">Reporté</span>
+        ) : (
+          <span class="meta-main tnum">{formatTime(m.kickoff)}</span>
         )}
+        <span class="muted">{comp?.name}</span>
       </div>
     </li>
   );
@@ -83,11 +113,11 @@ export function MatchRow({ m }: { m: Match }) {
 export function Section({ title, live = false, children }: { title: string; live?: boolean; children: ComponentChildren }) {
   return (
     <section class="section">
-      <h2 class="section-title">
+      <h2 class={`section-title${live ? ' is-live' : ''}`}>
         {live && <span class="live-dot" />}
         {title}
       </h2>
-      <ul class="card">{children}</ul>
+      <ul class="cards">{children}</ul>
     </section>
   );
 }
@@ -95,23 +125,32 @@ export function Section({ title, live = false, children }: { title: string; live
 export function Skeletons() {
   return (
     <div aria-busy="true" aria-label="Chargement">
-      {[3, 2].map((n, s) => (
-        <section class="section" key={s}>
-          <div class="skeleton skeleton-title" />
-          <ul class="card">
-            {Array.from({ length: n }).map((_, i) => (
-              <li class="row" key={i}>
-                <div class="skeleton skeleton-when" />
-                <div class="row-teams">
-                  <div class="skeleton skeleton-line" />
-                  <div class="skeleton skeleton-line short" />
-                </div>
-                <div class="skeleton skeleton-score" />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      <section class="section">
+        <div class="skeleton skeleton-title" />
+        <ul class="cards">
+          {[0, 1].map((i) => (
+            <li class="card card-live" key={i}>
+              <div class="skeleton skeleton-line tiny" />
+              <div class="skeleton skeleton-line" />
+              <div class="skeleton skeleton-line short" />
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section class="section">
+        <div class="skeleton skeleton-title" />
+        <ul class="cards">
+          {[0, 1].map((i) => (
+            <li class="card card-compact" key={i}>
+              <div class="lines">
+                <div class="skeleton skeleton-line" />
+                <div class="skeleton skeleton-line short" />
+              </div>
+              <div class="skeleton skeleton-time" />
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

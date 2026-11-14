@@ -6,6 +6,8 @@ export interface Team {
   name: string;
   short: string;
   logo?: string;
+  /** Couleur principale (hex sans #), utilisée pour la lueur des cartes. */
+  color?: string;
 }
 
 /** Modèle commun : l'UI ne connaît que ça, jamais le format d'une API. */
@@ -34,5 +36,6 @@ export interface Competition {
 }
 
 export interface MatchProvider {
-  getMatches(dayKey: string, signal?: AbortSignal): Promise<Match[]>;
+  /** `only` : ne recharger que ces compétitions (rafraîchissement live). */
+  getMatches(dayKey: string, signal?: AbortSignal, only?: string[]): Promise<Match[]>;
 }

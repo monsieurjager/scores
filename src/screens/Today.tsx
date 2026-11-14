@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Match } from '../types';
 import { COMPETITIONS, SPORTS } from '../config/competitions';
-import { addDays, dayKeyOf, dayLabel, dayLong, todayKey } from '../lib/date';
+import { addDays, dayKeyOf, dayLabel, dayLong, isRelativeDay, todayKey } from '../lib/date';
 import { useMatches } from '../hooks/useMatches';
 import { useStored } from '../hooks/useStored';
-import { Chips, Empty, MatchRow, Section, Segmented, Skeletons } from '../components/ui';
+import { Chips, CompactCard, Empty, LiveCard, Section, Segmented, Skeletons } from '../components/ui';
 import { IconCalendar, IconChevron } from '../components/icons';
 
 type SportFilter = 'all' | 'football' | 'rugby';
 
+/** `?day=2026-11-07` ouvre directement ce jour (pratique pour tester). */
+const initialDay = () => {
+  const d = new URLSearchParams(location.search).get('day');
+  return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : todayKey();
+};
+
 export function Today() {
-  const [dayKey, setDayKey] = useState(todayKey());
+  const [dayKey, setDayKey] = useState(initialDay);
   const [sport, setSport] = useStored<SportFilter>('filter.sport', 'all');
   const [comp, setComp] = useStored<string>('filter.comp', 'all');
   const [scrolled, setScrolled] = useState(false);
@@ -48,24 +54,24 @@ export function Today() {
 
   return (
     <>
-      <header class="navbar glass">
+      <header class={`navbar${scrolled ? ' scrolled' : ''}`}>
         <div class="navbar-inner">
-          <div class="nav-actions">
-            <button class="icon-btn" aria-label="Jour précédent" onClick={() => go(-1)}>
-              <IconChevron dir="left" />
-            </button>
-            <button class="icon-btn" aria-label="Jour suivant" onClick={() => go(1)}>
-              <IconChevron dir="right" />
-            </button>
-          </div>
           <div class={`nav-title${scrolled ? ' visible' : ''}`}>{dayLabel(dayKey)}</div>
           <div class="nav-actions">
             {!isToday && (
-              <button class="text-btn" onClick={() => setDayKey(todayKey())}>
+              <button class="glass pill-btn" onClick={() => setDayKey(todayKey())}>
                 Aujourd'hui
               </button>
             )}
-            <label class="icon-btn" aria-label="Choisir une date">
+            <div class="glass group">
+              <button class="icon-btn" aria-label="Jour précédent" onClick={() => go(-1)}>
+                <IconChevron dir="left" />
+              </button>
+              <button class="icon-btn" aria-label="Jour suivant" onClick={() => go(1)}>
+                <IconChevron dir="right" />
+              </button>
+            </div>
+            <label class="glass icon-btn round" aria-label="Choisir une date">
               <IconCalendar />
               <input
                 ref={dateInput}
@@ -83,8 +89,8 @@ export function Today() {
 
       <main class="screen">
         <div class="large-title">
+          {isRelativeDay(dayKey) && <p>{dayLong(dayKey).toUpperCase()}</p>}
           <h1>{dayLabel(dayKey)}</h1>
-          <p>{dayLong(dayKey)}</p>
         </div>
 
         <div class="filters">
@@ -105,17 +111,17 @@ export function Today() {
           )}
           {live.length > 0 && (
             <Section title="En direct" live>
-              {live.map((m) => <MatchRow key={m.id} m={m} />)}
+              {live.map((m) => <LiveCard key={m.id} m={m} />)}
             </Section>
           )}
           {upcoming.length > 0 && (
             <Section title="À venir">
-              {upcoming.map((m) => <MatchRow key={m.id} m={m} />)}
+              {upcoming.map((m) => <CompactCard key={m.id} m={m} />)}
             </Section>
           )}
           {finished.length > 0 && (
             <Section title="Terminés">
-              {finished.map((m) => <MatchRow key={m.id} m={m} />)}
+              {finished.map((m) => <CompactCard key={m.id} m={m} />)}
             </Section>
           )}
         </div>
