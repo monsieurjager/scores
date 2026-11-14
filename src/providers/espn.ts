@@ -1,4 +1,5 @@
-import type { Competition, Match, MatchProvider, MatchStatus, Team, TeamEntry } from '../types';
+import type { Competition, EventKind, Match, MatchEvent, MatchProvider, MatchStatus, StandingRow, StandingsTable, Team, TeamEntry } from '../types';
+import teamsData from '../data/teams.json';
 import { COMPETITIONS } from '../config/competitions';
 import { frenchName } from '../config/teamNames';
 import { addDays, dayKeyOf } from '../lib/date';
@@ -24,11 +25,22 @@ interface EspnCompetitor {
   score?: string;
   team: EspnTeam;
 }
+interface EspnDetail {
+  type: { id?: string; text: string };
+  clock?: { value?: number; displayValue?: string };
+  team?: { id: string };
+  scoringPlay?: boolean;
+  yellowCard?: boolean;
+  redCard?: boolean;
+  penaltyKick?: boolean;
+  ownGoal?: boolean;
+  athletesInvolved?: { displayName?: string; shortName?: string; fullName?: string }[];
+}
 interface EspnEvent {
   id: string;
   date: string;
   status: { displayClock?: string; type: { name: string; state: 'pre' | 'in' | 'post' } };
-  competitions: { competitors: EspnCompetitor[] }[];
+  competitions: { competitors: EspnCompetitor[]; details?: EspnDetail[] }[];
 }
 
 const toTeam = (t: EspnTeam, national: boolean): Team => {
@@ -54,6 +66,37 @@ function toClock(e: EspnEvent): string | undefined {
   return c && c !== "0'" ? c : 'En cours';
 }
 
+const RUGBY_KINDS: Record<string, [EventKind, number]> = {
+  try: ['try', 5],
+  conversion: ['conversion', 2],
+  'penalty goal': ['penaltygoal', 3],
+  'drop goal': ['dropgoal', 3],
+  'penalty try': ['penaltytry', 7],
+  'yellow card': ['yellow', 0],
+  'red card': ['red', 0],
+};
+
+/** Buts / essais et cartons, dans l'ordre du match. ESPN crédite déjà l'équipe bénéficiaire (même pour un but contre son camp). */
+function toEvents(details: EspnDetail[] | undefined, sport: Competition['sport']): MatchEvent[] {
+  const out: MatchEvent[] = [];
+  (details ?? []).forEach((d, i) => {
+    let kind: EventKind | null = null;
+    let points = 0;
+    if (sport === 'rugby') {
+      const k = RUGBY_KINDS[d.type.text.toLowerCase()];
+      if (k) [kind, points] = k;
+    } else if (d.scoringPlay) {
+      kind = d.ownGoal ? 'owngoal' : d.penaltyKick ? 'penalty' : 'goal';
+      points = 1;
+    } else if (d.yellowCard) kind = 'yellow';
+    else if (d.redCard) kind = 'red';
+    if (!kind || !d.team) return;
+    const a = d.athletesInvolved?.[0];
+    out.push({ id: `${i}`, kind, clock: d.clock?.displayValue?.replace("'+", '+') ?? '', seconds: d.clock?.value ?? 0, teamId: d.team.id, player: a?.shortName ?? a?.displayName ?? a?.fullName, points });
+  });
+  return out.sort((x, y) => x.seconds - y.seconds);
+}
+
 function normalize(e: EspnEvent, comp: Competition): Match | null {
   const c = e.competitions?.[0];
   const home = c?.competitors.find((x) => x.homeAway === 'home');
@@ -73,25 +116,27 @@ function normalize(e: EspnEvent, comp: Competition): Match | null {
     away: toTeam(away.team, !!comp.onlyTeams),
     homeScore: num(home.score),
     awayScore: num(away.score),
+    events: toEvents(c.details, comp.sport),
   };
 }
 
-async function fetchScoreboard(comp: Competition, query: string, signal?: AbortSignal): Promise<Match[]> {
+async function fetchScoreboard(comp: Competition, query: string, signal?: AbortSignal, fresh = false): Promise<Match[]> {
   const url = `${BASE}/${comp.espn.sport}/${comp.espn.league}/scoreboard${query}`;
-  const res = await fetch(url, { signal });
+  // fresh : rafraîchissement en direct, on évite le cache HTTP du navigateur (ESPN garde ses réponses ~1 à 9 s)
+  const res = await fetch(url, { signal, cache: fresh ? 'no-store' : 'default' });
   if (!res.ok) throw new Error(`ESPN ${comp.id}: HTTP ${res.status}`);
   const json = (await res.json()) as { events?: EspnEvent[] };
   return (json.events ?? []).map((e) => normalize(e, comp)).filter((m): m is Match => m !== null);
 }
 
-const byDay = (comp: Competition, dayKey: string, signal?: AbortSignal) => fetchScoreboard(comp, `?dates=${dayKey.replace(/-/g, '')}`, signal);
+const byDay = (comp: Competition, dayKey: string, signal?: AbortSignal, fresh = false) => fetchScoreboard(comp, `?dates=${dayKey.replace(/-/g, '')}`, signal, fresh);
 
 export const espnProvider: MatchProvider = {
   async getMatches(dayKey, signal, only) {
     const comps = COMPETITIONS.filter((c) => !only || only.includes(c.id));
     // ESPN découpe les jours à l'heure de la côte est des États-Unis : pour le rugby
     // (matchs tôt le matin à Paris, dans l'hémisphère sud) on lit aussi la veille.
-    const jobs = comps.flatMap((c) => (c.sport === 'rugby' ? [addDays(dayKey, -1), dayKey] : [dayKey]).map((d) => byDay(c, d, signal)));
+    const jobs = comps.flatMap((c) => (c.sport === 'rugby' ? [addDays(dayKey, -1), dayKey] : [dayKey]).map((d) => byDay(c, d, signal, !!only)));
     const results = await Promise.allSettled(jobs);
     const ok = results.filter((r): r is PromiseFulfilledResult<Match[]> => r.status === 'fulfilled');
     if (ok.length === 0 && results.length > 0) throw (results[0] as PromiseRejectedResult).reason;
@@ -114,21 +159,53 @@ export const espnProvider: MatchProvider = {
     return [...byId.values()].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   },
 
-  async getTeams(signal) {
-    // Championnats de clubs + équipes nationales (Ligue des nations pour le foot, Championnat des Nations pour le rugby).
-    const sources = COMPETITIONS.filter((c) => !c.onlyTeams || c.id === 'ldn' || c.id === 'nations');
-    const results = await Promise.allSettled(
-      sources.map(async (c) => {
-        const res = await fetch(`${BASE}/${c.espn.sport}/${c.espn.league}/teams`, { signal });
-        if (!res.ok) throw new Error(`ESPN teams ${c.id}: HTTP ${res.status}`);
-        const json = (await res.json()) as { sports?: { leagues?: { teams?: { team: EspnTeam }[] }[] }[] };
-        return (json.sports?.[0]?.leagues?.[0]?.teams ?? []).map((t): TeamEntry => ({ sport: c.sport, team: toTeam(t.team, !!c.onlyTeams) }));
-      }),
+  async getTeams() {
+    // Liste embarquée (scripts/fetch-teams.mjs) : les adresses /teams d'ESPN n'autorisent pas les navigateurs.
+    return (teamsData as { sport: 'football' | 'rugby'; id: string; name: string; logo?: string; color?: string; national: boolean }[]).map(
+      (t): TeamEntry => ({ sport: t.sport, team: { id: t.id, name: t.national ? frenchName(t.name) : t.name, short: t.name.slice(0, 3).toUpperCase(), logo: t.logo, color: t.color } }),
     );
-    const ok = results.filter((r): r is PromiseFulfilledResult<TeamEntry[]> => r.status === 'fulfilled');
-    if (ok.length === 0) throw (results[0] as PromiseRejectedResult).reason;
-    const byKey = new Map<string, TeamEntry>();
-    for (const r of ok) for (const e of r.value) byKey.set(`${e.sport}:${e.team.id}`, e);
-    return [...byKey.values()].sort((a, b) => a.team.name.localeCompare(b.team.name, 'fr'));
+  },
+
+  async getStandings(comp, teamIds, signal) {
+    const key = `${comp.id}:${teamIds.join(',')}`;
+    const hit = standingsCache.get(key);
+    if (hit && Date.now() - hit.at < 120_000) return hit.table;
+    const res = await fetch(`https://site.api.espn.com/apis/v2/sports/${comp.espn.sport}/${comp.espn.league}/standings`, { signal });
+    if (!res.ok) return null;
+    type Entry = { team: EspnTeam; stats?: { name: string; value?: number | string; displayValue?: string }[] };
+    const json = (await res.json()) as { children?: { name?: string; standings?: { entries?: Entry[] } }[] };
+    const groups = (json.children ?? []).filter((g) => g.standings?.entries?.length);
+    if (groups.length === 0) return null;
+    const g = groups.find((x) => x.standings!.entries!.some((e) => teamIds.includes(String(e.team.id)))) ?? groups[0];
+    const num = (e: Entry, ...names: string[]): number | null => {
+      for (const n of names) {
+        const st = e.stats?.find((x) => x.name === n);
+        if (st) {
+          const v = Number(st.value ?? st.displayValue);
+          if (!Number.isNaN(v)) return v;
+        }
+      }
+      return null;
+    };
+    const txt = (e: Entry, ...names: string[]) => names.map((n) => e.stats?.find((x) => x.name === n)?.displayValue).find((v) => v != null && v !== '') ?? '';
+    const rows: StandingRow[] = g.standings!.entries!
+      .map((e, i): StandingRow => ({
+        rank: num(e, 'rank', 'playoffSeed') ?? i + 1,
+        team: toTeam(e.team, !!comp.onlyTeams),
+        played: num(e, 'gamesPlayed'),
+        won: num(e, 'wins'),
+        drawn: num(e, 'ties', 'draws'),
+        lost: num(e, 'losses', 'gamesLost'),
+        diff: txt(e, 'pointDifferential', 'pointsDifference', 'differential'),
+        points: num(e, 'points'),
+      }))
+      .sort((a, b) => a.rank - b.rank);
+    // Un seul groupe : le nom de la compétition. Plusieurs groupes : leur nom, traduit.
+    const groupName = (g.name ?? '').replace(/^\d{4}-\d{2,4}\s+/, '').replace('Northern Hemisphere', 'Hémisphère nord').replace('Southern Hemisphere', 'Hémisphère sud').replace(/League ([A-D])/, 'Ligue $1').replace('Group', 'Groupe');
+    const table: StandingsTable = { title: groups.length > 1 && groupName ? groupName : comp.name, rows };
+    standingsCache.set(key, { at: Date.now(), table });
+    return table;
   },
 };
+
+const standingsCache = new Map<string, { at: number; table: StandingsTable }>();

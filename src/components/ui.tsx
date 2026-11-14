@@ -4,6 +4,14 @@ import type { Match, Team } from '../types';
 import { competitionById } from '../config/competitions';
 import { formatShortDate, formatTime } from '../lib/date';
 import { IconBall, IconWarn } from './icons';
+import { openMatch } from '../lib/matchStore';
+
+const openProps = (id: string) => ({
+  role: 'button' as const,
+  tabIndex: 0,
+  onClick: () => openMatch(id),
+  onKeyDown: (e: KeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), openMatch(id)),
+});
 
 export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string }) {
   const i = Math.max(0, options.findIndex((o) => o.id === value));
@@ -31,7 +39,7 @@ export function Chips<T extends string>({ value, options, onChange }: { value: T
   );
 }
 
-function Crest({ team, size }: { team: Team; size: number }) {
+export function Crest({ team, size }: { team: Team; size: number }) {
   const [broken, setBroken] = useState(false);
   const style = { '--s': `${size}px` };
   if (!team.logo || broken) {
@@ -51,7 +59,7 @@ export function LiveCard({ m }: { m: Match }) {
   const comp = competitionById(m.competitionId);
   const s = scoreOf(m);
   return (
-    <li class="card card-live" style={{ '--glow': m.home.color ? `#${m.home.color}` : 'transparent' }}>
+    <li class="card card-live" style={{ '--glow': m.home.color ? `#${m.home.color}` : 'transparent' }} aria-label={`${m.home.name} contre ${m.away.name}, détail du match`} {...openProps(m.id)}>
       <div class="card-head">
         <span class="clock tnum">
           <span class="live-dot" />
@@ -83,7 +91,7 @@ export function CompactCard({ m, withDate = false }: { m: Match; withDate?: bool
   const homeWon = done && s != null && s[0] > s[1];
   const awayWon = done && s != null && s[1] > s[0];
   return (
-    <li class="card card-compact">
+    <li class="card card-compact" aria-label={`${m.home.name} contre ${m.away.name}, détail du match`} {...openProps(m.id)}>
       <div class="lines">
         <div class={`team${awayWon ? ' dim' : ''}`}>
           <Crest team={m.home} size={28} />

@@ -114,4 +114,8 @@ export const mockProvider: MatchProvider = {
     for (const [c, h, a] of FIXTURES) for (const team of [h, a]) seen.set(team.id, { sport: c === 'tests' ? 'rugby' : 'football', team });
     return [...seen.values()];
   },
+
+  async getStandings() {
+    return null;
+  },
 };

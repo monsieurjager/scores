@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { Match } from '../types';
 import { provider } from '../providers';
 import { todayKey } from '../lib/date';
+import { publishMatches } from '../lib/matchStore';
 
 export type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; matches: Match[] };
 
-const REFRESH_MS = 30_000;
+// ESPN garde ses réponses 1 à 9 s : descendre sous 5 s ne servirait à rien.
+const REFRESH_MS = 5_000;
 
 /** Compétitions qui ont besoin d'être rafraîchies : match en cours, ou coup d'envoi dépassé. */
 function activeCompetitions(matches: Match[]): string[] {
@@ -18,7 +20,7 @@ function activeCompetitions(matches: Match[]): string[] {
 }
 
 /**
- * Charge les matchs d'un jour. Tant qu'un match est en cours, rafraîchit toutes les 30 s
+ * Charge les matchs d'un jour. Tant qu'un match est en cours, rafraîchit toutes les 5 s
  * uniquement les compétitions concernées. Sinon : aucun appel, sauf un minuteur au prochain coup d'envoi.
  */
 export function useMatches(dayKey: string) {
@@ -33,6 +35,7 @@ export function useMatches(dayKey: string) {
       try {
         const fresh = await provider.getMatches(dayKey, ctl.signal, only);
         if (ctl.signal.aborted) return;
+        publishMatches(fresh);
         setState((prev) => {
           if (!only || prev.status !== 'ready') return { status: 'ready', matches: fresh };
           const kept = prev.matches.filter((m) => !only.includes(m.competitionId));

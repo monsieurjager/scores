@@ -10,6 +10,35 @@ export interface Team {
   color?: string;
 }
 
+export type EventKind = 'goal' | 'penalty' | 'owngoal' | 'yellow' | 'red' | 'try' | 'conversion' | 'penaltygoal' | 'dropgoal' | 'penaltytry';
+
+/** Fait de match : but, carton, essai… */
+export interface MatchEvent {
+  id: string;
+  kind: EventKind;
+  clock: string; // « 45'+2' »
+  seconds: number;
+  teamId: string; // équipe créditée
+  player?: string;
+  points: number; // 0 pour un carton
+}
+
+export interface StandingRow {
+  rank: number;
+  team: Team;
+  played: number | null;
+  won: number | null;
+  drawn: number | null;
+  lost: number | null;
+  diff: string;
+  points: number | null;
+}
+
+export interface StandingsTable {
+  title: string;
+  rows: StandingRow[];
+}
+
 /** Modèle commun : l'UI ne connaît que ça, jamais le format d'une API. */
 export interface Match {
   id: string;
@@ -22,6 +51,7 @@ export interface Match {
   away: Team;
   homeScore?: number;
   awayScore?: number;
+  events?: MatchEvent[];
 }
 
 export interface Competition {
@@ -45,6 +75,8 @@ export interface MatchProvider {
   getMatches(dayKey: string, signal?: AbortSignal, only?: string[]): Promise<Match[]>;
   /** Prochains matchs à venir (toutes compétitions suivies), triés par date. */
   getUpcoming(signal?: AbortSignal): Promise<Match[]>;
+  /** Classement de la compétition (le groupe qui contient ces équipes), ou null s'il n'existe pas. */
+  getStandings(comp: Competition, teamIds: string[], signal?: AbortSignal): Promise<StandingsTable | null>;
   /** Équipes proposées dans le sélecteur de favoris. */
   getTeams(signal?: AbortSignal): Promise<TeamEntry[]>;
 }
