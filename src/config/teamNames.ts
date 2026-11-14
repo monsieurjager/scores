@@ -10,7 +10,7 @@ const FR: Record<string, string> = {
   Poland: 'Pologne', Portugal: 'Portugal', Romania: 'Roumanie', Russia: 'Russie', Samoa: 'Samoa', Scotland: 'Écosse', Senegal: 'Sénégal',
   Serbia: 'Serbie', Slovakia: 'Slovaquie', Slovenia: 'Slovénie', 'South Africa': 'Afrique du Sud', 'South Korea': 'Corée du Sud', Spain: 'Espagne',
   Sweden: 'Suède', Switzerland: 'Suisse', Tonga: 'Tonga', Tunisia: 'Tunisie', Turkey: 'Turquie', 'Türkiye': 'Turquie', Ukraine: 'Ukraine',
-  Uruguay: 'Uruguay', 'United States': 'États-Unis', USA: 'États-Unis', Wales: 'Pays de Galles', Namibia: 'Namibie', Egypt: 'Égypte',
+  Uruguay: 'Uruguay', 'United States': 'États-Unis', 'United States of America': 'États-Unis', USA: 'États-Unis', Wales: 'Pays de Galles', Namibia: 'Namibie', Egypt: 'Égypte',
   Cameroon: 'Cameroun', Nigeria: 'Nigeria', Ghana: 'Ghana', 'Saudi Arabia': 'Arabie saoudite', Qatar: 'Qatar', Iran: 'Iran', Iraq: 'Irak',
   Paraguay: 'Paraguay', Ecuador: 'Équateur', Peru: 'Pérou', Venezuela: 'Venezuela', Bolivia: 'Bolivie', Honduras: 'Honduras', Panama: 'Panama',
   'Costa Rica': 'Costa Rica', Jamaica: 'Jamaïque', Haiti: 'Haïti', 'Northern Ireland': 'Irlande du Nord', Belarus: 'Biélorussie',

@@ -25,7 +25,7 @@ export function Today() {
   const [comp, setComp] = useStored<string>('filter.comp', 'all');
   const [scrolled, setScrolled] = useState(false);
   const { state, retry } = useMatches(dayKey);
-  const upcomingAll = useUpcoming(dayKey === todayKey());
+  const upcomingAll = useUpcoming(true);
   const { keys: favKeys } = useFavorites();
   useSettings();
   const online = useOnline();
@@ -59,8 +59,11 @@ export function Today() {
     const c = COMPETITIONS.find((x) => x.id === m.competitionId);
     return !!c && isNational(c);
   };
-  const franceNext = upcomingNext.filter(isFrance).slice(0, 4);
-  const nextClubs = upcomingNext.filter((m) => !isFrance(m)).slice(0, 8);
+  // Jour sans match : on montre le prochain match (après le jour affiché), plutôt qu'un écran vide.
+  const emptyDay = state.status === 'ready' && visible.length === 0;
+  const nextMatch = emptyDay ? upcomingNext.find((m) => dayKeyOf(m.kickoff) > dayKey) : undefined;
+  const franceNext = upcomingNext.filter((m) => isFrance(m) && m.id !== nextMatch?.id).slice(0, 4);
+  const nextClubs = upcomingNext.filter((m) => !isFrance(m) && m.id !== nextMatch?.id).slice(0, 8);
   // Les matchs de mes équipes passent en premier, dans une section à part.
   const favMatches = visible.filter((m) => isFavMatch(m, favKeys)).sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || a.kickoff.localeCompare(b.kickoff));
   const others = visible.filter((m) => !isFavMatch(m, favKeys));
@@ -120,10 +123,20 @@ export function Today() {
         <div key={dayKey + sport + activeComp + state.status} class="fade-in">
           {state.status === 'loading' && <Skeletons />}
           {state.status === 'error' && <Empty error title="Impossible de charger les scores" text="Vérifie ta connexion, puis réessaie." action="Réessayer" onAction={retry} />}
-          {state.status === 'ready' && visible.length === 0 && (
+          {emptyDay && nextMatch && (
+            <Section title="Prochain match">
+              <CompactCard m={nextMatch} withDate />
+              <li style={{ listStyle: 'none' }}>
+                <button class="link-btn" onClick={() => setDayKey(dayKeyOf(nextMatch.kickoff))}>
+                  Aller à ce jour
+                </button>
+              </li>
+            </Section>
+          )}
+          {emptyDay && !nextMatch && upcomingAll !== null && (
             <Empty
               title="Aucun match"
-              text={sport === 'all' && activeComp === 'all' ? 'Rien au programme de tes compétitions ce jour-là.' : 'Aucun match pour ce filtre ce jour-là.'}
+              text={sport === 'all' && activeComp === 'all' ? 'Rien au programme de tes compétitions pour le moment.' : 'Aucun match à venir pour ce filtre.'}
               action={isToday ? undefined : "Revenir à aujourd'hui"}
               onAction={() => setDayKey(todayKey())}
             />
