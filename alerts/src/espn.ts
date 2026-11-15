@@ -84,4 +84,4 @@ export async function fetchEvent(comp: Competition, eventId: string): Promise<Pa
 }
 
 /** Empreinte de ce qui peut déclencher une alerte ou changer une Activité en direct. */
-export const signature = (m: MatchSnap) => [m.state, m.statusName, m.hs, m.as, m.reds.length, m.scoring.length, m.clock].join('|');
+export const signature = (m: MatchSnap) => [m.state, m.statusName, m.hs, m.as, m.reds.length, m.scoring.length, m.scoring.map((e) => e.player ?? '').join(',')].join('|');

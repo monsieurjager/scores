@@ -98,7 +98,7 @@ interface TickInfo {
   alerts?: number;
 }
 
-async function tick(env: Env): Promise<TickInfo> {
+async function tick(env: Env, fresh?: Map<string, Parsed>): Promise<TickInfo> {
   const subs = (await env.DB.prepare('SELECT id, endpoint, p256dh, auth, teams, prefs FROM subs').all<SubRow>()).results;
   const natives = (await env.DB.prepare('SELECT id, token, env, teams, prefs, start_token FROM native_subs').all<NativeRow>()).results;
   if (!subs.length && !natives.length) return { subs: 0, natives: 0 };
@@ -121,7 +121,10 @@ async function tick(env: Env): Promise<TickInfo> {
   for (const [compId, planned] of active) {
     const comp = COMPETITIONS.find((c) => c.id === compId);
     if (!comp) continue;
-    const parsed = await fetchDays(comp, daysFor(comp, day)).catch(() => []);
+    // Matchs suivis de la fenêtre : lus un par un (point d'accès ESPN le plus réactif, 4 à 12 s d'avance
+    // sur le tableau du jour), ou repris du coup d'œil qui vient de voir le changement.
+    const ids = planned.filter((p) => !p.done && now >= p.kickoff - 3 * 60_000 && now <= p.kickoff + 4 * 3_600_000).map((p) => p.id);
+    const parsed = (await Promise.all(ids.map((id) => fresh?.get(id) ?? fetchEvent(comp, id.slice(compId.length + 1)).catch(() => null)))).filter((x): x is Parsed => !!x);
     for (const { snap } of parsed) {
       const pm = planned.find((p) => p.id === snap.id);
       if (!pm || pm.done) continue;
@@ -168,16 +171,16 @@ async function tick(env: Env): Promise<TickInfo> {
 }
 
 /** Un passage, avec son résultat enregistré (consultable sur /status). */
-async function safeTick(env: Env) {
+async function safeTick(env: Env, fresh?: Map<string, Parsed>) {
   try {
-    await kvSet(env, 'status', { at: Date.now(), ...(await tick(env)) });
+    await kvSet(env, 'status', { at: Date.now(), ...(await tick(env, fresh)) });
   } catch (e) {
     await kvSet(env, 'status', { at: Date.now(), error: String(e) }).catch(() => {});
   }
 }
 
 /**
- * Déclenché chaque minute : un passage complet, puis jusqu'à la minute suivante, un coup d'œil toutes les 10 s
+ * Déclenché chaque minute : un passage complet, puis jusqu'à la minute suivante, un coup d'œil toutes les 5 s
  * aux seuls matchs suivis en cours (requête légère, sans base de données). Au moindre changement
  * (but, carton, mi-temps, minute…), passage complet immédiat : détection, notifications, Activités en direct.
  */
@@ -185,17 +188,21 @@ async function everyMinute(env: Env) {
   const t0 = Date.now();
   await safeTick(env);
   let watch = (await kvGet<Watch[]>(env, 'watch').catch(() => null)) ?? [];
-  while (watch.length && Date.now() - t0 < 47_000) {
-    await new Promise((r) => setTimeout(r, 10_000));
-    const seen = await Promise.all(
+  // Offre gratuite : 50 requêtes externes par déclenchement. Toutes les 5 s jusqu'à 3 matchs en même temps, 10 s au-delà.
+  let budget = 30;
+  while (watch.length && Date.now() - t0 < 52_000 && budget >= watch.length) {
+    await new Promise((r) => setTimeout(r, watch.length <= 3 ? 5_000 : 10_000));
+    budget -= watch.length;
+    const fresh = new Map<string, Parsed>();
+    await Promise.all(
       watch.map(async (w) => {
         const comp = COMPETITIONS.find((c) => c.id === w.comp);
         const p = comp ? await fetchEvent(comp, w.id.slice(w.comp.length + 1)).catch(() => null) : null;
-        return p ? signature(p.snap) !== w.sig : false;
+        if (p && signature(p.snap) !== w.sig) fresh.set(w.id, p);
       }),
     );
-    if (seen.some(Boolean)) {
-      await safeTick(env);
+    if (fresh.size) {
+      await safeTick(env, fresh);
       watch = (await kvGet<Watch[]>(env, 'watch').catch(() => null)) ?? [];
     }
   }
