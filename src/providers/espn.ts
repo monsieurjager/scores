@@ -135,9 +135,9 @@ const byDay = (comp: Competition, dayKey: string, signal?: AbortSignal, fresh = 
 export const espnProvider: MatchProvider = {
   async getMatches(dayKey, signal, only) {
     const comps = enabledCompetitions().filter((c) => !only || only.includes(c.id));
-    // ESPN découpe les jours à l'heure de la côte est des États-Unis : pour le rugby
+    // ESPN découpe les jours à l'heure de la côte est des États-Unis : pour les tests de rugby
     // (matchs tôt le matin à Paris, dans l'hémisphère sud) on lit aussi la veille.
-    const jobs = comps.flatMap((c) => (c.sport === 'rugby' ? [addDays(dayKey, -1), dayKey] : [dayKey]).map((d) => byDay(c, d, signal, !!only)));
+    const jobs = comps.flatMap((c) => (c.sport === 'rugby' && c.onlyTeams ? [addDays(dayKey, -1), dayKey] : [dayKey]).map((d) => byDay(c, d, signal, !!only)));
     const results = await Promise.allSettled(jobs);
     const ok = results.filter((r): r is PromiseFulfilledResult<Match[]> => r.status === 'fulfilled');
     if (ok.length === 0 && results.length > 0) throw (results[0] as PromiseRejectedResult).reason;
@@ -263,7 +263,7 @@ export const espnProvider: MatchProvider = {
       }))
       .sort((a, b) => a.rank - b.rank);
     // Un seul groupe : le nom de la compétition. Plusieurs groupes : leur nom, traduit.
-    const groupName = (g.name ?? '').replace(/^\d{4}-\d{2,4}\s+/, '').replace('Northern Hemisphere', 'Hémisphère nord').replace('Southern Hemisphere', 'Hémisphère sud').replace(/League ([A-D])/, 'Ligue $1').replace('Group', 'Groupe');
+    const groupName = (g.name ?? '').replace(/^\d{4}-\d{2,4}\s+/, '').replace('Northern Hemisphere', 'Hémisphère nord').replace('Southern Hemisphere', 'Hémisphère sud').replace(/League ([A-D])/, 'Ligue $1').replace('Group', 'Groupe').replace('Pool', 'Poule');
     const table: StandingsTable = { title: groups.length > 1 && groupName ? groupName : comp.name, rows };
     standingsCache.set(key, { at: Date.now(), table });
     return table;

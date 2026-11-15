@@ -9,7 +9,8 @@ const SOURCES = [
   ['football', 'soccer/fra.1', false], ['football', 'soccer/eng.1', false], ['football', 'soccer/esp.1', false],
   ['football', 'soccer/ita.1', false], ['football', 'soccer/ger.1', false],
   ['football', 'soccer/uefa.champions', false], ['football', 'soccer/uefa.europa', false], ['football', 'soccer/uefa.europa.conf', false],
-  ['football', 'soccer/uefa.nations', true], ['rugby', 'rugby/17567', true], ['rugby', 'rugby/180659', true],
+  ['football', 'soccer/uefa.nations', true], ['football', 'soccer/fifa.world', true], ['rugby', 'rugby/17567', true], ['rugby', 'rugby/180659', true],
+  ['rugby', 'rugby/270559', false], ['rugby', 'rugby/271937', false], ['rugby', 'rugby/272073', false],
 ];
 
 const byKey = new Map();

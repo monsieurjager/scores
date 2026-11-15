@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Match } from '../types';
-import { COMPETITIONS, SPORTS, isNational } from '../config/competitions';
+import { COMPETITIONS, FRANCE, SPORTS, isNational } from '../config/competitions';
 import { addDays, dayKeyOf, dayLabel, dayLong, isRelativeDay, todayKey } from '../lib/date';
 import { useMatches } from '../hooks/useMatches';
 import { useUpcoming } from '../hooks/useUpcoming';
@@ -38,28 +38,41 @@ export function Today() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Pastilles : championnats de clubs + « Les Bleus » (toutes les compétitions de l'équipe de France du sport choisi)
+  // Pastilles : championnats de clubs, puis « Les Bleus » / « XV de France » (la France seule) et « Sélections » (foot : toutes les nations suivies)
   const enabled = enabledCompetitions();
-  const clubComps = enabled.filter((c) => (sport === 'all' || c.sport === sport) && !isNational(c));
-  const hasBleus = sport === 'football' && enabled.some((c) => c.sport === 'football' && isNational(c));
-  const compOptions = [{ id: 'all', label: 'Toutes' }, ...clubComps.map((c) => ({ id: c.id, label: c.name })), ...(hasBleus ? [{ id: 'bleus', label: 'Les Bleus' }] : [])];
+  const sportComps = enabled.filter((c) => sport === 'all' || c.sport === sport);
+  const clubComps = sportComps.filter((c) => !isNational(c));
+  const hasNational = sportComps.some(isNational);
+  const compOptions = [
+    { id: 'all', label: 'Toutes' },
+    ...clubComps.map((c) => ({ id: c.id, label: c.name })),
+    ...(hasNational ? [{ id: 'bleus', label: sport === 'rugby' ? 'XV de France' : 'Les Bleus' }] : []),
+    ...(hasNational && sport === 'football' ? [{ id: 'selections', label: 'Sélections' }] : []),
+  ];
   const isToday = dayKey === todayKey();
-  const showChips = sport === 'football';
-  // La compétition choisie ne s'applique que si les pastilles sont visibles (filtre Foot).
+  const showChips = sport !== 'all';
+  // La compétition choisie ne s'applique que si les pastilles sont visibles (filtre Foot ou Rugby).
   const activeComp = showChips && compOptions.some((o) => o.id === comp) ? comp : 'all';
 
+  const involvesFrance = (m: Match) => m.home.short === FRANCE || m.away.short === FRANCE;
+  const compOf = (m: Match) => COMPETITIONS.find((x) => x.id === m.competitionId);
   const matchesFilter = (m: Match) => {
-    const c = COMPETITIONS.find((x) => x.id === m.competitionId);
+    const c = compOf(m);
     if (!c) return false;
     if (sport !== 'all' && c.sport !== sport) return false;
-    if (activeComp === 'bleus') return isNational(c);
+    if (activeComp === 'bleus') return isNational(c) && involvesFrance(m);
+    if (activeComp === 'selections') return isNational(c);
     return activeComp === 'all' || c.id === activeComp;
   };
   const visible: Match[] = useMemo(() => (state.status === 'ready' ? state.matches.filter(matchesFilter) : []), [state, sport, activeComp]);
   const upcomingNext = (upcomingAll ?? []).filter(matchesFilter);
   const isFrance = (m: Match) => {
-    const c = COMPETITIONS.find((x) => x.id === m.competitionId);
-    return !!c && isNational(c);
+    const c = compOf(m);
+    return !!c && isNational(c) && involvesFrance(m);
+  };
+  const isOtherNation = (m: Match) => {
+    const c = compOf(m);
+    return !!c && isNational(c) && !involvesFrance(m);
   };
   // Jour sans match : on montre le prochain match (après le jour affiché), plutôt qu'un écran vide.
   const emptyDay = state.status === 'ready' && visible.length === 0;
@@ -69,7 +82,8 @@ export function Today() {
   const alreadyShown = new Set([...visible.map((m) => m.id), ...(nextMatch ? [nextMatch.id] : [])]);
   const showUpcoming = isToday || emptyDay;
   const franceNext = showUpcoming ? upcomingNext.filter((m) => isFrance(m) && !alreadyShown.has(m.id)).slice(0, 4) : [];
-  const nextClubs = showUpcoming ? upcomingNext.filter((m) => !isFrance(m) && !alreadyShown.has(m.id)).slice(0, 8) : [];
+  const nextNations = showUpcoming ? upcomingNext.filter((m) => isOtherNation(m) && !alreadyShown.has(m.id)).slice(0, 4) : [];
+  const nextClubs = showUpcoming ? upcomingNext.filter((m) => !isFrance(m) && !isOtherNation(m) && !alreadyShown.has(m.id)).slice(0, 8) : [];
   // Les matchs de mes équipes passent en premier, dans une section à part.
   const favMatches = visible.filter((m) => isFavMatch(m, favKeys)).sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || a.kickoff.localeCompare(b.kickoff));
   const others = visible.filter((m) => !isFavMatch(m, favKeys));
@@ -169,6 +183,11 @@ export function Today() {
           {state.status === 'ready' && franceNext.length > 0 && (
             <Section title="Équipe de France · à venir">
               {franceNext.map((m) => <CompactCard key={m.id} m={m} withDate />)}
+            </Section>
+          )}
+          {state.status === 'ready' && nextNations.length > 0 && (
+            <Section title="Sélections · à venir">
+              {nextNations.map((m) => <CompactCard key={m.id} m={m} withDate />)}
             </Section>
           )}
           {state.status === 'ready' && nextClubs.length > 0 && (

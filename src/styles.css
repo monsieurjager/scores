@@ -167,6 +167,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .card-compact .lines { gap: 6px; }
 .meta { text-align: right; display: grid; gap: 2px; justify-items: end; font-size: 12px; max-width: 140px; }
 .meta-main.date { font-size: 16px; white-space: nowrap; }
+.meta-main.stale { font-size: 13px; font-weight: 600; color: var(--sub); }
 .meta .muted { line-height: 1.2; }
 .meta-main { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
 .card-compact:has(.score) .meta-main { font-size: 13px; font-weight: 600; color: var(--sub); }

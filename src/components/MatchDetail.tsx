@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { Lineup, Match, MatchEvent, MatchSummary, StandingsTable } from '../types';
 import { competitionById } from '../config/competitions';
 import { formatShortDate, formatTime } from '../lib/date';
-import { halfTimeScore } from '../lib/matchStats';
+import { halfTimeScore, isStale } from '../lib/matchStats';
 import { lastUpdateAt, useMatch } from '../lib/matchStore';
 import { useSummary } from '../hooks/useSummary';
 import { useStandings } from '../hooks/useStandings';
@@ -129,8 +129,10 @@ function Standings({ table, highlight }: { table: StandingsTable; highlight: str
   const [all, setAll] = useState(false);
   const rows = table.rows;
   const idx = rows.map((r, i) => (highlight.includes(r.team.id) ? i : -1)).filter((i) => i >= 0);
+  // Équipes introuvables dans le tableau : on montre le haut du classement plutôt qu'un tableau vide.
   const compact = rows.length > 12 && !all;
-  const shown = compact ? rows.filter((_, i) => idx.some((h) => Math.abs(h - i) <= 2)) : rows;
+  const window = idx.length > 0 ? (i: number) => idx.some((h) => Math.abs(h - i) <= 2) : (i: number) => i < 8;
+  const shown = compact ? rows.filter((_, i) => window(i)) : rows;
   const dash = (n: number | null) => (n == null ? '–' : n);
   return (
     <div class="glass-panel">
@@ -201,6 +203,7 @@ export function MatchDetail({ id, onClose }: { id: string; onClose: () => void }
   const live = m.status === 'live';
   const done = m.status === 'finished';
   const hasScore = m.homeScore != null && m.awayScore != null;
+  const stale = isStale(m);
   const ht = halfTimeScore(m, comp.sport);
   const events = [...(m.events ?? []), ...(summary?.subs ?? [])].sort((a, b) => a.seconds - b.seconds);
   const hasEvents = events.length > 0;
@@ -233,7 +236,7 @@ export function MatchDetail({ id, onClose }: { id: string; onClose: () => void }
               )}
               <div class={`detail-status${live ? ' is-live' : ''}`}>
                 {live && <span class="live-dot" />}
-                {live ? m.clock : done ? 'Terminé' : m.status === 'postponed' ? 'Reporté' : formatShortDate(m.kickoff)}
+                {live ? m.clock : done ? 'Terminé' : m.status === 'postponed' ? 'Reporté' : stale ? 'Score non communiqué' : formatShortDate(m.kickoff)}
               </div>
               {ht && (
                 <div class="ht-line tnum">
@@ -259,7 +262,7 @@ export function MatchDetail({ id, onClose }: { id: string; onClose: () => void }
         <Section title={comp.sport === 'rugby' ? 'Essais, points et cartons' : 'Buts et cartons'}>
           {/* Section attend des <li> : on utilise un <li> unique */}
           <li style={{ listStyle: 'none' }}>
-            {hasEvents ? <Timeline m={m} events={events} /> : <div class="glass-panel note">{m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>}
+            {hasEvents ? <Timeline m={m} events={events} /> : <div class="glass-panel note">{stale ? 'La source n\'a pas transmis le résultat de ce match.' : m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>}
           </li>
         </Section>
 

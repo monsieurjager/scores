@@ -17,3 +17,6 @@ export function halfTimeScore(m: Match, sport: Competition['sport']): { home: nu
   const first = ev.filter((e) => baseMinute(e.clock) <= limit);
   return { home: sum(first, m.home.id), away: sum(first, m.away.id) };
 }
+
+/** Match encore « à venir » plus de 4 h après son coup d'envoi : la source n'a pas transmis le résultat. */
+export const isStale = (m: Match) => m.status === 'scheduled' && Date.now() - new Date(m.kickoff).getTime() > 4 * 3_600_000;

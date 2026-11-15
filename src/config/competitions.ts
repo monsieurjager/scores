@@ -1,5 +1,9 @@
 import type { Competition } from '../types';
 
+/** Sélections nationales de foot suivies (abréviations ESPN). La France est traitée à part (« Les Bleus »). */
+export const BIG_NATIONS = ['FRA', 'ESP', 'ENG', 'GER', 'ITA', 'POR', 'NED', 'BEL', 'CRO', 'BRA', 'ARG', 'URU'];
+export const FRANCE = 'FRA';
+
 /**
  * Registre des compétitions suivies.
  * Pour en ajouter une : ajouter une entrée ici, rien d'autre.
@@ -14,17 +18,21 @@ export const COMPETITIONS: Competition[] = [
   { id: 'c3', sport: 'football', name: 'Ligue Europa', espn: { sport: 'soccer', league: 'uefa.europa' } },
   { id: 'c4', sport: 'football', name: 'Ligue Conférence', espn: { sport: 'soccer', league: 'uefa.europa.conf' } },
   // Équipe de France de football (matchs internationaux)
-  { id: 'ldn', sport: 'football', name: 'Ligue des nations', espn: { sport: 'soccer', league: 'uefa.nations' }, onlyTeams: ['FRA'] },
-  { id: 'amical', sport: 'football', name: 'Match amical', espn: { sport: 'soccer', league: 'fifa.friendly' }, onlyTeams: ['FRA'] },
-  { id: 'cdm', sport: 'football', name: 'Coupe du monde', espn: { sport: 'soccer', league: 'fifa.world' }, onlyTeams: ['FRA'] },
-  { id: 'q-cdm', sport: 'football', name: 'Qualifications Coupe du monde', espn: { sport: 'soccer', league: 'fifa.worldq.uefa' }, onlyTeams: ['FRA'] },
-  { id: 'euro', sport: 'football', name: 'Euro', espn: { sport: 'soccer', league: 'uefa.euro' }, onlyTeams: ['FRA'] },
-  { id: 'q-euro', sport: 'football', name: 'Qualifications Euro', espn: { sport: 'soccer', league: 'uefa.euroq' }, onlyTeams: ['FRA'] },
+  { id: 'ldn', sport: 'football', name: 'Ligue des nations', espn: { sport: 'soccer', league: 'uefa.nations' }, onlyTeams: BIG_NATIONS },
+  { id: 'amical', sport: 'football', name: 'Match amical', espn: { sport: 'soccer', league: 'fifa.friendly' }, onlyTeams: BIG_NATIONS },
+  { id: 'cdm', sport: 'football', name: 'Coupe du monde', espn: { sport: 'soccer', league: 'fifa.world' }, onlyTeams: BIG_NATIONS },
+  { id: 'q-cdm', sport: 'football', name: 'Qualifications Coupe du monde', espn: { sport: 'soccer', league: 'fifa.worldq.uefa' }, onlyTeams: BIG_NATIONS },
+  { id: 'euro', sport: 'football', name: 'Euro', espn: { sport: 'soccer', league: 'uefa.euro' }, onlyTeams: BIG_NATIONS },
+  { id: 'q-euro', sport: 'football', name: 'Qualifications Euro', espn: { sport: 'soccer', league: 'uefa.euroq' }, onlyTeams: BIG_NATIONS },
   // Rugby : XV de France
   { id: 'nations', sport: 'rugby', name: 'Championnat des Nations', espn: { sport: 'rugby', league: '17567' }, onlyTeams: ['FRA'] },
   { id: 'six', sport: 'rugby', name: 'Six Nations', espn: { sport: 'rugby', league: '180659' }, onlyTeams: ['FRA'] },
   { id: 'tests', sport: 'rugby', name: 'Tests internationaux', espn: { sport: 'rugby', league: '289234' }, onlyTeams: ['FRA'] },
   { id: 'rwc', sport: 'rugby', name: 'Coupe du monde de rugby', espn: { sport: 'rugby', league: '164205' }, onlyTeams: ['FRA'] },
+  // Rugby : clubs
+  { id: 'top14', sport: 'rugby', name: 'Top 14', espn: { sport: 'rugby', league: '270559' } },
+  { id: 'rcc', sport: 'rugby', name: 'Champions Cup', espn: { sport: 'rugby', league: '271937' } },
+  { id: 'rchc', sport: 'rugby', name: 'Challenge Cup', espn: { sport: 'rugby', league: '272073' } },
 ];
 
 export const SPORTS = [
@@ -34,5 +42,5 @@ export const SPORTS = [
 
 export const competitionById = (id: string) => COMPETITIONS.find((c) => c.id === id);
 
-/** Compétition « équipe nationale » : on ne garde que les matchs de la France. */
+/** Compétition « équipes nationales » : on ne garde que les matchs des sélections listées (onlyTeams). */
 export const isNational = (c: Competition) => !!c.onlyTeams;

@@ -16,8 +16,9 @@ function Switch({ on, label, onChange }: { on: boolean; label: string; onChange:
 
 const GROUPS: { title: string; match: (c: (typeof COMPETITIONS)[number]) => boolean }[] = [
   { title: 'Foot · clubs', match: (c) => c.sport === 'football' && !isNational(c) },
-  { title: 'Équipe de France · foot', match: (c) => c.sport === 'football' && isNational(c) },
-  { title: 'XV de France · rugby', match: (c) => c.sport === 'rugby' },
+  { title: 'Foot · sélections nationales', match: (c) => c.sport === 'football' && isNational(c) },
+  { title: 'Rugby · clubs', match: (c) => c.sport === 'rugby' && !isNational(c) },
+  { title: 'Rugby · XV de France', match: (c) => c.sport === 'rugby' && isNational(c) },
 ];
 
 export function Settings() {

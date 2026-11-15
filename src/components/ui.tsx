@@ -3,6 +3,7 @@ import { useState } from 'preact/hooks';
 import type { Match, Team } from '../types';
 import { competitionById } from '../config/competitions';
 import { formatShortDate, formatTime } from '../lib/date';
+import { isStale } from '../lib/matchStats';
 import { IconBall, IconWarn } from './icons';
 import { openMatch } from '../lib/matchStore';
 
@@ -109,6 +110,8 @@ export function CompactCard({ m, withDate = false }: { m: Match; withDate?: bool
           <span class="meta-main">Terminé</span>
         ) : m.status === 'postponed' ? (
           <span class="meta-main">Reporté</span>
+        ) : isStale(m) ? (
+          <span class="meta-main stale">Score n.c.</span>
         ) : withDate ? (
           <span class="meta-main date">{formatShortDate(m.kickoff)}</span>
         ) : (
