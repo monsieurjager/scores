@@ -1,6 +1,6 @@
 // Détection des faits de match entre deux relevés, et rédaction des notifications (en français).
 
-export type AlertKind = 'kickoff' | 'score' | 'halftime' | 'fulltime' | 'red';
+export type AlertKind = 'kickoff' | 'score' | 'halftime' | 'fulltime' | 'red' | 'lineups';
 
 export interface ScoringEvent {
   teamId: string;
@@ -42,6 +42,8 @@ export interface Alert {
   tag: string;
   matchId: string;
   teamKeys: string[];
+  /** Texte propre à une équipe (clé « sport:id ») : l'abonné reçoit celui de son équipe favorite. */
+  bodyByTeam?: Record<string, string>;
 }
 
 const LABEL: Record<ScoringEvent['kind'], string> = {
@@ -91,4 +93,28 @@ export function detect(prev: Stored | undefined, m: MatchSnap): { alerts: Alert[
   if (prev.s !== 'post' && m.state === 'post') push('fulltime', `Fin du match · ${score}`, m.compName);
 
   return { alerts, next };
+}
+
+export interface TeamSheet {
+  teamId: string;
+  name: string;
+  formation?: string;
+  starters: string[]; // noms, dans l'ordre fourni (gardien d'abord en foot, numéros 1 à 15 en rugby)
+}
+
+/** Notification « Compositions officielles » : chaque abonné reçoit le onze (ou le XV) de son équipe. */
+export function lineupsAlert(m: Pick<MatchSnap, 'id' | 'sport' | 'home' | 'away'>, sheets: TeamSheet[]): Alert | null {
+  if (sheets.length === 0 || sheets.some((t) => t.starters.length < (m.sport === 'rugby' ? 15 : 11))) return null;
+  const line = (t: TeamSheet) => `${t.name}${t.formation ? ` (${t.formation})` : ''} : ${t.starters.join(', ')}`;
+  const bodyByTeam: Record<string, string> = {};
+  for (const t of sheets) bodyByTeam[`${m.sport}:${t.teamId}`] = line(t);
+  return {
+    kind: 'lineups',
+    title: `Compositions · ${m.home.name} – ${m.away.name}`,
+    body: sheets.map(line).join('\n'),
+    tag: `${m.id}-lineups`,
+    matchId: m.id,
+    teamKeys: [`${m.sport}:${m.home.id}`, `${m.sport}:${m.away.id}`],
+    bodyByTeam,
+  };
 }

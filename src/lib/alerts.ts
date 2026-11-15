@@ -16,7 +16,7 @@ async function post(path: string, body: unknown) {
   return res.json();
 }
 
-const prefsOf = (a: AlertSettings) => ({ goals: a.goals, kickoff: a.kickoff, halftime: a.halftime, fulltime: a.fulltime, red: a.red });
+const prefsOf = (a: AlertSettings) => ({ goals: a.goals, kickoff: a.kickoff, halftime: a.halftime, fulltime: a.fulltime, red: a.red, lineups: a.lineups });
 const teams = () => getFavorites().map((f) => f.key);
 
 async function subscription(): Promise<PushSubscription | null> {

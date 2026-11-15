@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { detect, snapToStored } from '../src/detect.ts';
+import { detect, lineupsAlert, snapToStored } from '../src/detect.ts';
 
 const base = (o = {}) => ({
   id: 'l1-1', sport: 'football', compName: 'Ligue 1', state: 'pre', statusName: 'STATUS_SCHEDULED', clock: "0'",
@@ -63,6 +63,19 @@ export default async function (test) {
     const { alerts } = detect({ s: 'in', h: 0, a: 0, ht: false, red: 0, ev: 0 }, base({ state: 'in', hs: 1 }));
     assert.equal(alerts.length, 1);
     assert.equal(alerts[0].title, 'But ! Paris Saint-Germain 1–0 Marseille');
+  });
+  await t('compositions officielles : chaque abonné reçoit le onze de son équipe', () => {
+    const m = { id: 'ldn-1', sport: 'football', home: { id: '465', name: 'Turquie' }, away: { id: '478', name: 'France' } };
+    const xi = (n) => Array.from({ length: 11 }, (_, i) => `${n}${i + 1}`);
+    const a = lineupsAlert(m, [{ teamId: '465', name: 'Turquie', formation: '5-3-2', starters: xi('T') }, { teamId: '478', name: 'France', formation: '4-3-3', starters: xi('F') }]);
+    assert.equal(a.title, 'Compositions · Turquie – France');
+    assert.match(a.bodyByTeam['football:478'], /^France \(4-3-3\) : F1, F2/);
+    assert.deepEqual(a.teamKeys, ['football:465', 'football:478']);
+  });
+
+  await t('compositions incomplètes : pas de notification', () => {
+    const m = { id: 'x', sport: 'rugby', home: { id: '9', name: 'France' }, away: { id: '5', name: 'Afrique du Sud' } };
+    assert.equal(lineupsAlert(m, [{ teamId: '9', name: 'France', starters: ['A', 'B'] }]), null);
   });
   return failed;
 }

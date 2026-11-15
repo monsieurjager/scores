@@ -19,9 +19,10 @@ export interface AlertSettings {
   halftime: boolean;
   fulltime: boolean;
   red: boolean;
+  lineups: boolean;
 }
 
-const DEFAULTS: Settings = { theme: 'auto', refreshSec: 5, hiddenComps: [], alerts: { enabled: false, goals: true, kickoff: true, halftime: true, fulltime: true, red: false } };
+const DEFAULTS: Settings = { theme: 'auto', refreshSec: 5, hiddenComps: [], alerts: { enabled: false, goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true } };
 const KEY = 'settings.v1';
 
 const read = (): Settings => {

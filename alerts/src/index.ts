@@ -7,8 +7,9 @@
  */
 import { COMPETITIONS } from '../../src/config/competitions.ts';
 import type { Competition } from '../../src/types';
-import { detect, type Alert, type Stored } from './detect.ts';
+import { detect, lineupsAlert, type Alert, type Stored, type TeamSheet } from './detect.ts';
 import { fetchDays } from './espn.ts';
+import { frenchName } from '../../src/config/teamNames.ts';
 import { generateVapid, sendPush, type Vapid } from './webpush.ts';
 
 interface Env {
@@ -17,9 +18,9 @@ interface Env {
   SUBJECT: string;
 }
 
-type Prefs = { goals: boolean; kickoff: boolean; halftime: boolean; fulltime: boolean; red: boolean };
-const DEFAULT_PREFS: Prefs = { goals: true, kickoff: true, halftime: true, fulltime: true, red: false };
-const PREF_OF: Record<Alert['kind'], keyof Prefs> = { score: 'goals', kickoff: 'kickoff', halftime: 'halftime', fulltime: 'fulltime', red: 'red' };
+type Prefs = { goals: boolean; kickoff: boolean; halftime: boolean; fulltime: boolean; red: boolean; lineups: boolean };
+const DEFAULT_PREFS: Prefs = { goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true };
+const PREF_OF: Record<Alert['kind'], keyof Prefs> = { score: 'goals', kickoff: 'kickoff', halftime: 'halftime', fulltime: 'fulltime', red: 'red', lineups: 'lineups' };
 // Services push autorisés (évite que le service serve à envoyer des requêtes vers n'importe quelle adresse)
 const PUSH_HOSTS = [/\.push\.apple\.com$/, /^fcm\.googleapis\.com$/, /\.push\.services\.mozilla\.com$/, /\.notify\.windows\.com$/];
 
@@ -113,6 +114,22 @@ async function tick(env: Env): Promise<TickInfo> {
       }
     }
   }
+  // Compositions officielles : dans les 90 min avant le coup d'envoi, jusqu'à leur publication (une seule fois).
+  const sent = (await kvGet<string[]>(env, 'lineups-sent')) ?? [];
+  for (const [compId, planned] of Object.entries(plan.comps)) {
+    const comp = COMPETITIONS.find((c) => c.id === compId);
+    if (!comp) continue;
+    for (const pm of planned) {
+      if (pm.done || sent.includes(pm.id) || now < pm.kickoff - 90 * 60_000 || now > pm.kickoff + 15 * 60_000) continue;
+      const a = await fetchLineups(comp, pm.id).catch(() => null);
+      if (a) {
+        alerts.push(a);
+        sent.push(pm.id);
+        await kvSet(env, 'lineups-sent', sent.slice(-60));
+      }
+    }
+  }
+
   if (planChanged) await kvSet(env, 'plan', plan);
   if (alerts.length) await deliver(env, subs, alerts);
   // Ménage : états de matchs de plus de 3 jours
@@ -136,6 +153,28 @@ async function everyMinute(env: Env) {
   await safeTick(env);
 }
 
+/** Compositions d'un match (détail ESPN), ou null si elles ne sont pas encore publiées. */
+async function fetchLineups(comp: Competition, matchId: string): Promise<Alert | null> {
+  const eid = matchId.slice(comp.id.length + 1);
+  const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${comp.espn.sport}/${comp.espn.league}/summary?event=${eid}`);
+  if (!res.ok) return null;
+  type P = { starter?: boolean; jersey?: string; athlete?: { shortName?: string; displayName?: string } };
+  const j = (await res.json()) as { rosters?: { homeAway: string; formation?: string; team?: { id?: string; displayName?: string }; roster?: P[] }[]; header?: { competitions?: { competitors?: { homeAway: string; team?: { id?: string; displayName?: string } }[] }[] } };
+  const nameOf = (p: P) => (p.athlete?.shortName ?? p.athlete?.displayName ?? '').replace(/^[A-ZÀ-Ý]\.\s*/, '');
+  const sheets: TeamSheet[] = (j.rosters ?? []).map((r) => {
+    const roster = r.roster ?? [];
+    // Rugby : les numéros 1 à 15 sont les titulaires (l'indicateur « starter » d'ESPN n'est pas fiable)
+    const starters = comp.sport === 'rugby' ? roster.filter((p) => Number(p.jersey) >= 1 && Number(p.jersey) <= 15).sort((a, b) => Number(a.jersey) - Number(b.jersey)) : roster.filter((p) => p.starter);
+    return { teamId: String(r.team?.id ?? ''), name: r.team?.displayName ?? '', formation: r.formation, starters: starters.map(nameOf).filter(Boolean) };
+  });
+  const home = j.rosters?.find((r) => r.homeAway === 'home');
+  const away = j.rosters?.find((r) => r.homeAway === 'away');
+  if (!home?.team?.id || !away?.team?.id) return null;
+  const nm = (n?: string) => (n ? (comp.onlyTeams ? frenchName(n) : n) : '');
+  for (const sh of sheets) sh.name = nm(sh.name);
+  return lineupsAlert({ id: matchId, sport: comp.sport, home: { id: String(home.team.id), name: nm(home.team.displayName) }, away: { id: String(away.team.id), name: nm(away.team.displayName) } }, sheets);
+}
+
 async function deliver(env: Env, subs: SubRow[], alerts: Alert[]) {
   const vapid = await vapidKeys(env);
   for (const s of subs) {
@@ -143,7 +182,8 @@ async function deliver(env: Env, subs: SubRow[], alerts: Alert[]) {
     const prefs = { ...DEFAULT_PREFS, ...(JSON.parse(s.prefs) as Partial<Prefs>) };
     for (const a of alerts) {
       if (!prefs[PREF_OF[a.kind]] || !a.teamKeys.some((k) => teams.has(k))) continue;
-      const status = await sendPush(s, { title: a.title, body: a.body, tag: a.tag, match: a.matchId }, vapid, env.SUBJECT).catch(() => 0);
+      const body = (a.bodyByTeam && a.teamKeys.map((k) => (teams.has(k) ? a.bodyByTeam![k] : undefined)).find(Boolean)) || a.body;
+      const status = await sendPush(s, { title: a.title, body, tag: a.tag, match: a.matchId }, vapid, env.SUBJECT).catch(() => 0);
       if (status === 404 || status === 410) {
         await env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(s.id).run(); // abonnement expiré
         break;
