@@ -39,9 +39,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npm run deploy
       - name: Vérifier que le service répond et joint ESPN
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
         run: |
           for i in $(seq 1 12); do
-            out=$(curl -s -m 15 "${{ steps.deploy.outputs.url }}/health" || true)
+            out=$(curl -s -m 15 "$URL/health" || true)
             echo "$out"
             echo "$out" | grep -q '"ok":true' && exit 0
             sleep 10

@@ -32,7 +32,8 @@ jobs:
         run: |
           if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
             sub=$(curl -s -H "Authorization: Bearer $CF_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain" | jq -r '.result.subdomain // empty')
-            if [ -n "$sub" ]; then echo "VITE_ALERTS_URL=https://scores-alerts.$sub.workers.dev" >> "$GITHUB_ENV"; echo "Alertes : https://scores-alerts.$sub.workers.dev"; fi
+            # Le sous-domaine peut contenir un nom : on le masque dans les journaux (publics).
+            if [ -n "$sub" ]; then echo "::add-mask::$sub"; echo "VITE_ALERTS_URL=https://scores-alerts.$sub.workers.dev" >> "$GITHUB_ENV"; echo "Adresse des alertes configurée"; fi
           fi
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3

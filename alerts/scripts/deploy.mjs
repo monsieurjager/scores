@@ -32,7 +32,9 @@ if (!subdomain) {
   if (!r.json?.success) fail('Création du sous-domaine workers.dev impossible', r);
   subdomain = wanted;
 }
-console.log(`✓ Sous-domaine : ${subdomain}.workers.dev`);
+// Le sous-domaine peut contenir un nom : masqué dans les journaux GitHub (publics pour un dépôt public).
+if (process.env.GITHUB_ACTIONS) console.log(`::add-mask::${subdomain}`);
+console.log('✓ Sous-domaine workers.dev prêt');
 
 // 2. Base D1
 r = await api('/d1/database?name=scores-alerts');
@@ -57,5 +59,5 @@ writeFileSync(new URL('../wrangler.toml', import.meta.url), readFileSync(new URL
 execFileSync('npx', ['wrangler', 'deploy'], { stdio: 'inherit', cwd: new URL('..', import.meta.url).pathname });
 
 const url = `https://scores-alerts.${subdomain}.workers.dev`;
-console.log(`✓ Service déployé : ${url}`);
+console.log('✓ Service déployé');
 if (GITHUB_OUTPUT) appendFileSync(GITHUB_OUTPUT, `url=${url}\n`);
