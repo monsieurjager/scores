@@ -49,7 +49,11 @@ const toTeam = (t: EspnTeam, national: boolean): Team => {
   const base = t.displayName.length > 20 && t.shortDisplayName ? t.shortDisplayName : t.displayName;
   const long = national ? frenchName(base) : base;
   // Un écusson noir disparaît sur le verre sombre : on préfère la couleur alternative.
-  const dark = (hex?: string) => !hex || parseInt(hex, 16) < 0x202020;
+  // Quasi-noir (aucune composante vive) : invisible sur fond sombre. #0000CC (bleu France) est gardé.
+  const dark = (hex?: string) => {
+    if (!hex || !/^[0-9a-f]{6}$/i.test(hex)) return true;
+    return Math.max(...[0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16))) < 48;
+  };
   const color = dark(t.color) ? (dark(t.alternateColor) ? undefined : t.alternateColor) : t.color;
   return { id: t.id, name: long, short: t.abbreviation ?? long.slice(0, 3).toUpperCase(), logo: (t.logo ?? t.logos?.[0]?.href)?.replace(/^http:/, 'https:'), color };
 };

@@ -8,6 +8,7 @@ import { useSummary } from '../hooks/useSummary';
 import { useStandings } from '../hooks/useStandings';
 import { Crest, Section, Segmented } from './ui';
 import { Standings } from './Standings';
+import { Pitch } from './Pitch';
 import { Sheet } from './Sheet';
 import { IconBall } from './icons';
 
@@ -93,7 +94,7 @@ function Stats({ summary }: { summary: MatchSummary }) {
   );
 }
 
-function Lineups({ m, lineups }: { m: Match; lineups: { home: Lineup; away: Lineup } }) {
+function Lineups({ m, lineups, sport }: { m: Match; lineups: { home: Lineup; away: Lineup }; sport: 'football' | 'rugby' }) {
   const [side, setSide] = useState<'home' | 'away'>('home');
   const l = lineups[side];
   const team = side === 'home' ? m.home : m.away;
@@ -109,7 +110,9 @@ function Lineups({ m, lineups }: { m: Match; lineups: { home: Lineup; away: Line
   );
   return (
     <div>
+      {sport === 'football' && <Pitch m={m} sport={sport} lineups={lineups} side={side} />}
       <Segmented<'home' | 'away'> label="Équipe" value={side} onChange={setSide} options={[{ id: 'home', label: m.home.name }, { id: 'away', label: m.away.name }]} />
+      {sport === 'rugby' && <Pitch m={m} sport={sport} lineups={lineups} side={side} />}
       <div class="glass-panel" style={{ marginTop: 12 }}>
         <div class="lu-head">
           <span>{team.name}</span>
@@ -267,7 +270,7 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
       {summary?.lineups && (
         <Section title="Compositions">
           <li style={{ listStyle: 'none' }}>
-            <Lineups m={m} lineups={summary.lineups} />
+            <Lineups m={m} lineups={summary.lineups} sport={comp.sport} />
           </li>
         </Section>
       )}

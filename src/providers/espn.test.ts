@@ -49,6 +49,15 @@ describe('lecture des données ESPN', () => {
     expect([m.home.name, m.away.name]).toEqual(['Turquie', 'France']);
     expect(normalize(event({ home: ['1', 'Cyprus', 'CYP'], away: ['2', 'Montenegro', 'MNE'] }), ldn)).toBeNull();
   });
+  it('garde une couleur d\'équipe vive (bleu France #0000CC), écarte le noir', () => {
+    const rugby = competitionById('nations')!;
+    const e = event({ home: ['9', 'France', 'FRA'], away: ['5', 'South Africa', 'SOU'] });
+    (e.competitions[0].competitors[0].team as { color?: string }).color = '0000CC';
+    (e.competitions[0].competitors[1].team as { color?: string }).color = '000000';
+    const m = normalize(e, rugby)!;
+    expect(m.home.color).toBe('0000CC');
+    expect(m.away.color).toBeUndefined();
+  });
   it('coupes d\'Europe de rugby : seulement les matchs des clubs français', () => {
     const rcc = competitionById('rcc')!;
     const toulouseId = rcc.onlyTeamIds![0];
