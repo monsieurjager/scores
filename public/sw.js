@@ -90,6 +90,7 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title || 'Scores', {
       body: data.body || '',
       tag: data.tag,
+      silent: data.silent === true,
       icon: 'icon-192.png',
       badge: 'icon-192.png',
       data: { match: data.match },

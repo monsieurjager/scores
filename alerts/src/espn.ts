@@ -32,7 +32,7 @@ function parse(e: EspnEvent, comp: Competition): Parsed | null {
   const reds: MatchSnap['reds'] = [];
   for (const d of c!.details ?? []) {
     if (!d.team) continue;
-    const player = d.athletesInvolved?.[0]?.shortName ?? d.athletesInvolved?.[0]?.displayName;
+    const player = d.athletesInvolved?.[0]?.displayName ?? d.athletesInvolved?.[0]?.shortName;
     const clock = d.clock?.displayValue?.replace("'+", '+') ?? '';
     if (comp.sport === 'rugby') {
       const k = RUGBY[d.type.text.toLowerCase()];

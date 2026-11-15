@@ -33,6 +33,8 @@ export interface Stored {
   ht: boolean;
   red: number;
   ev: number;
+  /** But notifié avant qu'ESPN ne donne le buteur : la notification sera complétée dès qu'il arrive. */
+  ns?: boolean;
 }
 
 export interface Alert {
@@ -44,6 +46,8 @@ export interface Alert {
   teamKeys: string[];
   /** Texte propre à une équipe (clé « sport:id ») : l'abonné reçoit celui de son équipe favorite. */
   bodyByTeam?: Record<string, string>;
+  /** Mise à jour d'une notification déjà affichée (buteur arrivé après coup) : remplace sans sonner. */
+  silent?: boolean;
 }
 
 const LABEL: Record<ScoringEvent['kind'], string> = {
@@ -59,38 +63,65 @@ const LABEL: Record<ScoringEvent['kind'], string> = {
 
 export const snapToStored = (m: MatchSnap): Stored => ({ s: m.state, h: m.hs, a: m.as, ht: m.statusName === 'STATUS_HALFTIME', red: m.reds.length, ev: m.scoring.length });
 
+// Style des notifications : un titre court qui dit l'essentiel, puis « minute + joueur » et le score.
+//   ⚽️ France marque !          🏉 Essai transformé · France     🟥 Carton rouge · Turquie
+//   80' Junior Kroupi           15' A. Grandidier-Nkanang         62' E. Topçu
+//   France 2 – 0 Turquie        France 7 – 0 Afrique du Sud       France 1 – 0 Turquie
+const line = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(' ');
+
 export function detect(prev: Stored | undefined, m: MatchSnap): { alerts: Alert[]; next: Stored } {
   const next = snapToStored(m);
   // Premier relevé d'un match (service démarré en cours de match, nouveau favori…) : on mémorise sans notifier.
   if (!prev) return { alerts: [], next };
   if (prev.ht && m.statusName !== 'STATUS_HALFTIME') next.ht = true; // la mi-temps n'est annoncée qu'une fois
-  const score = `${m.home.name} ${m.hs}–${m.as} ${m.away.name}`;
+  const score = `${m.home.name} ${m.hs} – ${m.as} ${m.away.name}`;
   const teamKeys = [`${m.sport}:${m.home.id}`, `${m.sport}:${m.away.id}`];
   const teamName = (id: string) => (id === m.home.id ? m.home.name : id === m.away.id ? m.away.name : '');
   const alerts: Alert[] = [];
-  const push = (kind: AlertKind, title: string, body: string) => alerts.push({ kind, title, body, tag: `${m.id}-${kind}-${m.hs}-${m.as}-${m.reds.length}`, matchId: m.id, teamKeys });
+  const tagOf = (kind: AlertKind) => `${m.id}-${kind}-${m.hs}-${m.as}-${m.reds.length}`;
+  const push = (kind: AlertKind, title: string, body: string, silent = false) => alerts.push({ kind, title, body, tag: tagOf(kind), matchId: m.id, teamKeys, ...(silent ? { silent } : {}) });
 
-  if (prev.s === 'pre' && m.state === 'in') push('kickoff', `Coup d'envoi · ${m.home.name} – ${m.away.name}`, m.compName);
+  if (prev.s === 'pre' && m.state === 'in') push('kickoff', "🟢 Coup d'envoi", `${m.home.name} – ${m.away.name}\n${m.compName}`);
+
+  /** Notification de points : titre selon l'équipe qui marque, corps « minute joueur » + score. */
+  const scoreAlert = (fresh: ScoringEvent[], scorerTeam: string | undefined, silent: boolean) => {
+    if (m.sport === 'football') {
+      const last = fresh[fresh.length - 1];
+      const team = scorerTeam ?? (last ? teamName(last.teamId) : '');
+      const title = last?.kind === 'penalty' ? `⚽️ ${team} marque sur penalty !` : team ? `⚽️ ${team} marque !` : '⚽️ But !';
+      const who = last?.player ? line(last.clock, last.player, last.kind === 'owngoal' ? '(c.s.c.)' : undefined) : '';
+      push('score', title, [who, score].filter(Boolean).join('\n'), silent);
+    } else {
+      // Rugby : essai + transformation relevés ensemble → une seule notification, qui met en avant l'auteur de l'essai
+      const kinds = new Set(fresh.map((e) => e.kind));
+      const main = fresh.find((e) => e.kind === 'try' || e.kind === 'penaltytry') ?? fresh[fresh.length - 1];
+      const what = kinds.has('try') ? (kinds.has('conversion') ? 'Essai transformé' : 'Essai') : main ? LABEL[main.kind] : 'Points';
+      const team = scorerTeam ?? (main ? teamName(main.teamId) : '');
+      push('score', line('🏉', what, team && `· ${team}`), [main?.player ? line(main.clock, main.player) : '', score].filter(Boolean).join('\n'), silent);
+    }
+  };
 
   if (m.hs > prev.h || m.as > prev.a) {
     const fresh = m.scoring.slice(prev.ev);
-    const last = fresh[fresh.length - 1];
-    if (m.sport === 'football') {
-      const who = last ? `${last.player ?? teamName(last.teamId)}${last.player ? ` (${teamName(last.teamId)})` : ''}` : '';
-      const how = last && last.kind !== 'goal' ? ` · ${LABEL[last.kind].replace('But ', '')}` : '';
-      push('score', `But ! ${score}`, [who, last?.clock].filter(Boolean).join(' · ') + how || m.compName);
-    } else {
-      // Rugby : essai + transformation relevés ensemble → une seule notification
-      const kinds = [...new Set(fresh.map((e) => LABEL[e.kind]))].join(' + ');
-      const scorer = last?.player ? `${last.player} (${teamName(last.teamId)})` : last ? teamName(last.teamId) : '';
-      push('score', `${kinds || 'Points'} · ${score}`, [scorer, last?.clock].filter(Boolean).join(' · ') || m.compName);
+    // Équipe qui marque d'après le score (ESPN donne parfois le score avant le détail de l'action)
+    const byScore = m.hs > prev.h && m.as <= prev.a ? m.home.name : m.as > prev.a && m.hs <= prev.h ? m.away.name : undefined;
+    scoreAlert(fresh, byScore, false);
+    if (!fresh.some((e) => e.player)) {
+      next.ns = true; // on garde ces actions à relire : le buteur arrivera au prochain relevé
+      next.ev = prev.ev;
     }
+  } else if (prev.ns && m.scoring.length > prev.ev && m.scoring.slice(prev.ev).some((e) => e.player)) {
+    // Le buteur vient d'arriver : la notification du but est complétée (même étiquette, sans nouveau son)
+    scoreAlert(m.scoring.slice(prev.ev), undefined, true);
+  } else if (prev.ns) {
+    next.ns = true; // toujours en attente du buteur
+    next.ev = prev.ev;
   }
 
-  for (const r of m.reds.slice(prev.red)) push('red', `Carton rouge · ${teamName(r.teamId)}`, [r.player, r.clock, score].filter(Boolean).join(' · '));
+  for (const r of m.reds.slice(prev.red)) push('red', `🟥 Carton rouge · ${teamName(r.teamId)}`, [line(r.clock, r.player), score].filter(Boolean).join('\n'));
 
-  if (m.statusName === 'STATUS_HALFTIME' && !prev.ht) push('halftime', `Mi-temps · ${score}`, m.compName);
-  if (prev.s !== 'post' && m.state === 'post') push('fulltime', `Fin du match · ${score}`, m.compName);
+  if (m.statusName === 'STATUS_HALFTIME' && !prev.ht) push('halftime', '⏸️ Mi-temps', `${score}\n${m.compName}`);
+  if (prev.s !== 'post' && m.state === 'post') push('fulltime', '🏁 Fin du match', `${score}\n${m.compName}`);
 
   return { alerts, next };
 }
@@ -110,7 +141,7 @@ export function lineupsAlert(m: Pick<MatchSnap, 'id' | 'sport' | 'home' | 'away'
   for (const t of sheets) bodyByTeam[`${m.sport}:${t.teamId}`] = line(t);
   return {
     kind: 'lineups',
-    title: `Compositions · ${m.home.name} – ${m.away.name}`,
+    title: `📋 Compositions · ${m.home.name} – ${m.away.name}`,
     body: sheets.map(line).join('\n'),
     tag: `${m.id}-lineups`,
     matchId: m.id,

@@ -243,7 +243,7 @@ async function deliver(env: Env, subs: SubRow[], alerts: Alert[]) {
   const vapid = await vapidKeys(env);
   for (const s of subs) {
     for (const { a, body } of alertsFor(s, alerts)) {
-      const status = await sendPush(s, { title: a.title, body, tag: a.tag, match: a.matchId }, vapid, env.SUBJECT).catch(() => 0);
+      const status = await sendPush(s, { title: a.title, body, tag: a.tag, match: a.matchId, ...(a.silent ? { silent: true } : {}) }, vapid, env.SUBJECT).catch(() => 0);
       if (status === 404 || status === 410) {
         await env.DB.prepare('DELETE FROM subs WHERE id = ?').bind(s.id).run(); // abonnement expiré
         break;
@@ -254,12 +254,12 @@ async function deliver(env: Env, subs: SubRow[], alerts: Alert[]) {
 
 const forgetNative = (env: Env, id: string) => env.DB.batch([env.DB.prepare('DELETE FROM native_subs WHERE id = ?').bind(id), env.DB.prepare('DELETE FROM activities WHERE id = ?').bind(id)]);
 
-const nativeAlert = (title: string, body: string, matchId?: string) => ({ aps: { alert: { title, body }, sound: 'default', ...(matchId ? { 'thread-id': matchId } : {}) }, ...(matchId ? { match: matchId } : {}) });
+const nativeAlert = (title: string, body: string, matchId?: string, silent = false) => ({ aps: { alert: { title, body }, ...(silent ? {} : { sound: 'default' }), ...(matchId ? { 'thread-id': matchId } : {}) }, ...(matchId ? { match: matchId } : {}) });
 
 async function deliverNative(env: Env, apns: ApnsConfig, natives: NativeRow[], alerts: Alert[]) {
   for (const s of natives) {
     for (const { a, body } of alertsFor(s, alerts)) {
-      const r = await sendApns(apns, { deviceToken: s.token, env: s.env, type: 'alert', payload: nativeAlert(a.title, body, a.matchId), collapseId: a.tag }, jwtStore(env)).catch(() => ({ status: 0 }));
+      const r = await sendApns(apns, { deviceToken: s.token, env: s.env, type: 'alert', payload: nativeAlert(a.title, body, a.matchId, a.silent), collapseId: a.tag }, jwtStore(env)).catch(() => ({ status: 0 }));
       if (deadToken(r)) {
         await forgetNative(env, s.id); // app supprimée ou notifications coupées
         break;
