@@ -16,9 +16,12 @@ import { IconCalendar, IconChevron } from '../components/icons';
 type SportFilter = 'all' | 'football' | 'rugby';
 
 /** `?day=2026-11-07` ouvre directement ce jour (pratique pour tester). */
+let dayParamUsed = false;
 const initialDay = () => {
   const d = new URLSearchParams(location.search).get('day');
-  return d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : todayKey();
+  if (dayParamUsed || !d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return todayKey();
+  dayParamUsed = true;
+  return d;
 };
 
 export function Today() {

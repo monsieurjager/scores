@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   check:
@@ -19,3 +20,10 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/check-espn.mjs
+      # GitHub suspend les tâches planifiées d'un dépôt public sans activité depuis 60 jours.
+      # On réactive le planning à chaque passage : il ne s'arrête donc jamais (aucun commit nécessaire).
+      - name: Garder la vérification active
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/check-espn.yml/enable"
