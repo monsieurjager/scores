@@ -69,16 +69,24 @@ async function buildPlan(env: Env, fav: Set<string>, day: string): Promise<Plan>
   return plan;
 }
 
-async function tick(env: Env) {
+interface TickInfo {
+  subs: number;
+  rebuilt?: boolean;
+  followed?: number;
+  active?: number;
+  alerts?: number;
+}
+
+async function tick(env: Env): Promise<TickInfo> {
   const subs = (await env.DB.prepare('SELECT id, endpoint, p256dh, auth, teams, prefs FROM subs').all<SubRow>()).results;
-  if (!subs.length) return;
+  if (!subs.length) return { subs: 0 };
   const fav = new Set(subs.flatMap((s) => JSON.parse(s.teams) as string[]));
   const now = Date.now();
   const day = parisDay(now);
   const plan = await kvGet<Plan>(env, 'plan');
   if (!plan || plan.day !== day || now - plan.at > 30 * 60_000 || (await kvGet(env, 'dirty'))) {
-    await buildPlan(env, fav, day); // beaucoup de requêtes : on s'arrête là pour cette minute
-    return;
+    const fresh = await buildPlan(env, fav, day); // beaucoup de requêtes : on s'arrête là pour ce passage
+    return { subs: subs.length, rebuilt: true, followed: Object.values(fresh.comps).flat().length };
   }
 
   // Compétitions avec un match suivi en cours (ou sur le point de commencer)
@@ -109,6 +117,23 @@ async function tick(env: Env) {
   if (alerts.length) await deliver(env, subs, alerts);
   // Ménage : états de matchs de plus de 3 jours
   if (new Date(now).getUTCMinutes() === 0) await env.DB.prepare('DELETE FROM matches WHERE updated < ?').bind(now - 3 * 86_400_000).run();
+  return { subs: subs.length, followed: Object.values(plan.comps).flat().length, active: active.length, alerts: alerts.length };
+}
+
+/** Un passage, avec son résultat enregistré (consultable sur /status). */
+async function safeTick(env: Env) {
+  try {
+    await kvSet(env, 'status', { at: Date.now(), ...(await tick(env)) });
+  } catch (e) {
+    await kvSet(env, 'status', { at: Date.now(), error: String(e) }).catch(() => {});
+  }
+}
+
+/** Déclenché chaque minute : deux passages à 30 s d'intervalle (alertes ~2× plus rapides, toujours en offre gratuite). */
+async function everyMinute(env: Env) {
+  await safeTick(env);
+  await new Promise((r) => setTimeout(r, 30_000));
+  await safeTick(env);
 }
 
 async function deliver(env: Env, subs: SubRow[], alerts: Alert[]) {
@@ -147,6 +172,13 @@ async function handle(req: Request, env: Env): Promise<Response> {
     const espn = await fetch('https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/scoreboard').then((r) => r.status).catch(() => 0);
     const subs = await env.DB.prepare('SELECT COUNT(*) AS n FROM subs').first<{ n: number }>();
     return json({ ok: espn === 200, espn, subs: subs?.n ?? 0 }, h, espn === 200 ? 200 : 503);
+  }
+
+  if (req.method === 'GET' && pathname === '/status') {
+    // État du service : dernier passage (doit dater de moins d'une minute), matchs suivis, erreurs éventuelles.
+    const st = await kvGet<{ at: number; error?: string } & TickInfo>(env, 'status');
+    const age = st ? Math.round((Date.now() - st.at) / 1000) : null;
+    return json({ ok: !!st && age! < 300 && !st.error, lastTickSecondsAgo: age, ...(st ?? {}) }, h);
   }
 
   if (req.method !== 'POST') return json({ error: 'not found' }, h, 404);
@@ -193,5 +225,5 @@ async function handle(req: Request, env: Env): Promise<Response> {
 
 export default {
   fetch: (req: Request, env: Env) => handle(req, env).catch((e) => new Response(JSON.stringify({ error: String(e) }), { status: 500 })),
-  scheduled: (_c: ScheduledController, env: Env, ctx: ExecutionContext) => ctx.waitUntil(tick(env)),
+  scheduled: (_c: ScheduledController, env: Env, ctx: ExecutionContext) => ctx.waitUntil(everyMinute(env)),
 } satisfies ExportedHandler<Env>;

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'preact/hooks';
-import { addDays, dayLong, todayKey, weekdayShort } from '../lib/date';
+import { addDays, dayLong, monthShort, todayKey, weekdayShort } from '../lib/date';
 
 /** Bande de jours défilante (façon Apple Sports) : 2 semaines avant, 4 semaines après aujourd'hui. */
 export function DayStrip({ value, onChange, stuck }: { value: string; onChange: (day: string) => void; stuck: boolean }) {
@@ -25,8 +25,8 @@ export function DayStrip({ value, onChange, stuck }: { value: string; onChange: 
     <div class={`daystrip-bar${stuck ? ' stuck' : ''}`}>
       <div class="daystrip" ref={ref} role="toolbar" aria-label="Choisir un jour">
         {days.map((d) => (
-          <button key={d} class={`day${d === today ? ' today' : ''}`} aria-pressed={d === value} aria-label={dayLong(d)} onClick={() => onChange(d)}>
-            <small>{d === today ? 'AUJ' : weekdayShort(d)}</small>
+          <button key={d} class={`day${d === today ? ' today' : ''}${d.endsWith('-01') && d !== today ? ' month' : ''}`} aria-pressed={d === value} aria-label={dayLong(d)} onClick={() => onChange(d)}>
+            <small>{d === today ? 'AUJ' : d.endsWith('-01') ? monthShort(d) : weekdayShort(d)}</small>
             <b class="tnum">{Number(d.slice(8))}</b>
           </button>
         ))}

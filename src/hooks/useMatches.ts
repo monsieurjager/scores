@@ -3,6 +3,7 @@ import type { Match } from '../types';
 import { provider } from '../providers';
 import { todayKey } from '../lib/date';
 import { publishMatches } from '../lib/matchStore';
+import { cachedDay, storeDay } from '../lib/dayCache';
 import { useSettings } from '../lib/settings';
 
 export type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; matches: Match[] };
@@ -32,15 +33,23 @@ export function useMatches(dayKey: string) {
     async (silent: boolean, only?: string[]) => {
       abort.current?.abort();
       const ctl = (abort.current = new AbortController());
-      if (!silent) setState({ status: 'loading' });
+      if (!silent) {
+        // Affichage instantané des dernières données connues, puis mise à jour en arrière-plan.
+        const cached = only ? null : cachedDay(dayKey);
+        if (cached) {
+          publishMatches(cached);
+          setState({ status: 'ready', matches: cached });
+          silent = true;
+        } else setState({ status: 'loading' });
+      }
       try {
         const fresh = await provider.getMatches(dayKey, ctl.signal, only);
         if (ctl.signal.aborted) return;
         publishMatches(fresh);
         setState((prev) => {
-          if (!only || prev.status !== 'ready') return { status: 'ready', matches: fresh };
-          const kept = prev.matches.filter((m) => !only.includes(m.competitionId));
-          return { status: 'ready', matches: [...kept, ...fresh].sort((a, b) => a.kickoff.localeCompare(b.kickoff)) };
+          const matches = !only || prev.status !== 'ready' ? fresh : [...prev.matches.filter((m) => !only.includes(m.competitionId)), ...fresh].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+          storeDay(dayKey, matches);
+          return { status: 'ready', matches };
         });
       } catch {
         if (ctl.signal.aborted) return;

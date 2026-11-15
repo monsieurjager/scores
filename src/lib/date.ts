@@ -58,3 +58,10 @@ export function weekdayShort(key: string): string {
   const [y, m, d] = key.split('-').map(Number);
   return weekdayFmt.format(new Date(Date.UTC(y, m - 1, d))).replace('.', '').toUpperCase();
 }
+
+const monthFmt = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', month: 'short' });
+/** « DÉC », « JANV »… (repère du changement de mois dans la bande des jours). */
+export function monthShort(key: string): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return monthFmt.format(new Date(Date.UTC(y, m - 1, d))).replace('.', '').toUpperCase();
+}

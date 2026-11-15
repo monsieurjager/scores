@@ -3,6 +3,7 @@ import teamsData from '../data/teams.json';
 import { COMPETITIONS } from '../config/competitions';
 import { frenchName } from '../config/teamNames';
 import { enabledCompetitions } from '../lib/settings';
+import { knownRestDay, rememberCalendar } from '../lib/calendar';
 import { addDays, dayKeyOf } from '../lib/date';
 
 /**
@@ -128,14 +129,27 @@ async function fetchScoreboard(comp: Competition, query: string, signal?: AbortS
   const res = await fetch(url, { signal, cache: fresh ? 'no-store' : 'default' });
   if (!res.ok) throw new Error(`ESPN ${comp.id}: HTTP ${res.status}`);
   const json = (await res.json()) as { events?: EspnEvent[] };
+  rememberCalendar(comp.id, json);
   return (json.events ?? []).map((e) => normalize(e, comp)).filter((m): m is Match => m !== null);
 }
 
-const byDay = (comp: Competition, dayKey: string, signal?: AbortSignal, fresh = false) => fetchScoreboard(comp, `?dates=${dayKey.replace(/-/g, '')}`, signal, fresh);
+/** Compétitions ignorées lors du dernier chargement d'un jour (calendrier connu) : pour le suivi. */
+export const requestStats = { lastDay: { requested: 0, skipped: 0 } };
+
+const byDay = (comp: Competition, dayKey: string, signal?: AbortSignal, fresh = false): Promise<Match[]> => {
+  // Jour de repos connu d'après le calendrier : pas de requête.
+  if (knownRestDay(comp.id, dayKey)) {
+    requestStats.lastDay.skipped++;
+    return Promise.resolve([]);
+  }
+  requestStats.lastDay.requested++;
+  return fetchScoreboard(comp, `?dates=${dayKey.replace(/-/g, '')}`, signal, fresh);
+};
 
 export const espnProvider: MatchProvider = {
   async getMatches(dayKey, signal, only) {
     const comps = enabledCompetitions().filter((c) => !only || only.includes(c.id));
+    if (!only) requestStats.lastDay = { requested: 0, skipped: 0 };
     // ESPN découpe les jours à l'heure de la côte est des États-Unis : pour les tests de rugby
     // (matchs tôt le matin à Paris, dans l'hémisphère sud) on lit aussi la veille.
     const jobs = comps.flatMap((c) => (c.sport === 'rugby' && c.onlyTeams ? [addDays(dayKey, -1), dayKey] : [dayKey]).map((d) => byDay(c, d, signal, !!only)));

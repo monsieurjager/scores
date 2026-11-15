@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Match } from '../types';
 import { COMPETITIONS, SPORTS, isNational } from '../config/competitions';
-import { addDays, dayKeyOf, dayLong, dayTitle, todayKey } from '../lib/date';
+import { addDays, dayKeyOf, todayKey } from '../lib/date';
 import { DayStrip } from '../components/DayStrip';
+import { isStale } from '../lib/matchStats';
 import { useMatches } from '../hooks/useMatches';
 import { useUpcoming } from '../hooks/useUpcoming';
 import { useStored } from '../hooks/useStored';
@@ -78,8 +79,9 @@ export function Today() {
   const favMatches = visible.filter((m) => isFavMatch(m, favKeys)).sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || a.kickoff.localeCompare(b.kickoff));
   const others = visible.filter((m) => !isFavMatch(m, favKeys));
   const live = others.filter((m) => m.status === 'live');
-  const upcoming = others.filter((m) => m.status === 'scheduled' || m.status === 'postponed');
-  const finished = others.filter((m) => m.status === 'finished');
+  // Match passé resté « à venir » chez la source (« Score n.c. ») : rangé avec les terminés.
+  const upcoming = others.filter((m) => (m.status === 'scheduled' && !isStale(m)) || m.status === 'postponed');
+  const finished = others.filter((m) => m.status === 'finished' || isStale(m));
   const [slide, setSlide] = useState<'' | 'next' | 'prev'>('');
   const go = (n: number) => {
     setSlide(n > 0 ? 'next' : 'prev');
@@ -102,8 +104,7 @@ export function Today() {
         </div>
         <div class="title-row">
           <div class="large-title">
-            <p>{dayLong(dayKey).toUpperCase()}</p>
-            <h1>{dayTitle(dayKey)}</h1>
+            <h1>Scores</h1>
           </div>
           <label class="glass icon-btn round" aria-label="Choisir une date">
             <IconCalendar />
