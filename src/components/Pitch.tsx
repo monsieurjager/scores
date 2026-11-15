@@ -15,16 +15,14 @@ const similar = (a: string, b: string) => {
 };
 const lastName = (n: string) => n.replace(/^[A-ZÀ-Ý]\.\s*/, '');
 
-const Ball = () => (
+/** Ballon : l'emoji du système (dessiné et ombré par iOS). */
+const Ball = ({ rugby = false }: { rugby?: boolean }) => <span class="emo" aria-hidden="true">{rugby ? '🏉' : '⚽️'}</span>;
+/** Passe décisive : flèche courbe dans un disque blanc. */
+export const AssistIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
-    <circle cx="12" cy="12" r="10" fill="#fff" stroke="#111" stroke-width="1.6" />
-    <path d="M12 7.6l3.4 2.5-1.3 4H9.9l-1.3-4z" fill="#111" />
-  </svg>
-);
-const Boot = () => (
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M3 16V8.6C3 7.7 3.7 7 4.6 7H9l1.3 3.4c.3.8 1.1 1.4 2 1.5l5.3.6c1.5.2 2.6 1.4 2.6 2.9V16z" fill="currentColor" />
-    <path d="M5 18.5h2M10.5 18.5h2M16 18.5h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    <circle cx="12" cy="12" r="11" fill="#fff" />
+    <path d="M6 16.5c1.6-5 5.2-7.6 10.6-7.8" fill="none" stroke="#16181d" stroke-width="2.4" stroke-linecap="round" />
+    <path d="M13.6 5.6l3.6 3.1-3.3 3.4" fill="none" stroke="#16181d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
   </svg>
 );
 
@@ -45,8 +43,8 @@ export function PlayerFacts({ p }: { p: LineupPlayer }) {
     <span class="facts">
       {n > 0 && (
         <span class="fact" title={p.tries ? `${p.tries} essai(s)` : `${n} but(s)`}>
-          <Ball />
-          {n > 1 && <b>{n}</b>}
+          <Ball rugby={!!p.tries} />
+          {n > 1 && <b>×{n}</b>}
         </span>
       )}
       {(p.ownGoals ?? 0) > 0 && (
@@ -55,9 +53,9 @@ export function PlayerFacts({ p }: { p: LineupPlayer }) {
         </span>
       )}
       {(p.assists ?? 0) > 0 && (
-        <span class="fact boot" title={`${p.assists} passe(s) décisive(s)`}>
-          <Boot />
-          {p.assists! > 1 && <b>{p.assists}</b>}
+        <span class="fact assist" title={`${p.assists} passe(s) décisive(s)`}>
+          <AssistIcon />
+          {p.assists! > 1 && <b>×{p.assists}</b>}
         </span>
       )}
       {(p.yellow || p.red) && <span class={`fact card ${p.red ? 'red' : 'yellow'}`} title={p.red ? 'Carton rouge' : 'Carton jaune'} />}

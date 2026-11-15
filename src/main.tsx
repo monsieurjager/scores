@@ -3,7 +3,8 @@ import { useState } from 'preact/hooks';
 import './styles.css';
 import { Today } from './screens/Today';
 import { Favorites } from './screens/Favorites';
-import { IconScores, IconSliders, IconStar } from './components/icons';
+import { Upcoming } from './screens/Upcoming';
+import { IconCalendar, IconScores, IconSliders, IconStar } from './components/icons';
 import { MatchDetail } from './components/MatchDetail';
 import { closeSheets, popSheet, useSheets } from './lib/matchStore';
 import { TeamSheet } from './components/TeamSheet';
@@ -14,9 +15,10 @@ import { registerServiceWorker, startUpdateChecks } from './lib/update';
 import { isNative, syncAlerts } from './lib/alerts';
 import { pushSheet } from './lib/matchStore';
 
-type Tab = 'today' | 'favoris' | 'reglages';
+type Tab = 'today' | 'avenir' | 'favoris' | 'reglages';
 const TABS: { id: Tab; label: string; icon: (p: { filled?: boolean }) => preact.JSX.Element }[] = [
   { id: 'today', label: 'Scores', icon: IconScores },
+  { id: 'avenir', label: 'À venir', icon: IconCalendar },
   { id: 'favoris', label: 'Favoris', icon: IconStar },
   { id: 'reglages', label: 'Réglages', icon: IconSliders },
 ];
@@ -45,7 +47,8 @@ function App() {
   const back = sheets.length > 1;
   return (
     <>
-      {tab === 'today' && <Today key={home} />}
+      {tab === 'today' && <Today key={home} onUpcoming={() => onTab('avenir')} />}
+      {tab === 'avenir' && <Upcoming />}
       {tab === 'favoris' && <Favorites />}
       {tab === 'reglages' && <Settings />}
       {top?.type === 'match' && <MatchDetail key={`m${sheets.length}`} id={top.id} onClose={popSheet} canGoBack={back} />}

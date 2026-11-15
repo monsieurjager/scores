@@ -93,10 +93,14 @@ export interface MatchSummary {
 }
 
 export interface Odds {
-  home: number;
+  home?: number;
   draw?: number;
-  away: number;
+  away?: number;
   provider?: string;
+  /** Handicap, du point de vue de l'équipe à domicile (−2,5 : gagner par 3 d'écart ou plus) */
+  spread?: { line: number; home?: number; away?: number };
+  /** Nombre total de buts / points */
+  total?: { line: number; over?: number; under?: number };
 }
 
 export interface StandingRow {

@@ -8,9 +8,9 @@ import { useSummary } from '../hooks/useSummary';
 import { useStandings } from '../hooks/useStandings';
 import { Crest, Section, Segmented } from './ui';
 import { Standings } from './Standings';
-import { Pitch, PlayerFacts, RatingPill } from './Pitch';
+import { AssistIcon, Pitch, PlayerFacts, RatingPill } from './Pitch';
+import { picks } from '../lib/odds';
 import { Sheet } from './Sheet';
-import { IconBall } from './icons';
 
 const RUGBY_LABEL: Record<string, string> = { try: 'Essai', conversion: 'Transformation', penaltygoal: 'Pénalité', dropgoal: 'Drop', penaltytry: 'Essai de pénalité' };
 const CARD_LABEL = { yellow: 'Carton jaune', red: 'Carton rouge' } as const;
@@ -38,8 +38,8 @@ function EventIcon({ e }: { e: MatchEvent }) {
   if (e.kind === 'yellow' || e.kind === 'red') return <span class={`tl-ico ${e.kind}`} aria-hidden="true" />;
   if (e.points > 0 && (e.kind === 'try' || e.kind === 'conversion' || e.kind === 'penaltygoal' || e.kind === 'dropgoal' || e.kind === 'penaltytry')) return <span class="tl-ico" aria-hidden="true">+{e.points}</span>;
   return (
-    <span class="tl-ico goal" aria-hidden="true">
-      <IconBall />
+    <span class="tl-goal" aria-hidden="true">
+      ⚽️
     </span>
   );
 }
@@ -86,27 +86,26 @@ function Timeline({ m, events, rugby }: { m: Match; events: MatchEvent[]; rugby:
   );
 }
 
-/** Cotes 1 N 2 et probabilités correspondantes (marge du bookmaker retirée). */
-function OddsPanel({ m, odds }: { m: Match; odds: Odds }) {
-  const items = [
-    { k: '1', team: m.home, v: odds.home, label: m.home.name },
-    ...(odds.draw ? [{ k: 'N', team: undefined, v: odds.draw, label: 'Match nul' }] : []),
-    { k: '2', team: m.away, v: odds.away, label: m.away.name },
-  ];
-  const inv = items.reduce((s, i) => s + 1 / i.v, 0);
-  const best = Math.min(...items.map((i) => i.v));
+/** Paris dont la cote est comprise entre 1,30 et 2,00, rédigés en clair. */
+function OddsPanel({ m, odds, sport }: { m: Match; odds: Odds; sport: 'football' | 'rugby' }) {
+  const list = picks(odds, m.home.name, m.away.name, sport);
+  const fr = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <div class="glass-panel">
-      <div class="odds">
-        {items.map((i) => (
-          <div class={`odd${i.v === best ? ' fav' : ''}`} key={i.k} aria-label={`${i.label} : cote ${i.v.toLocaleString('fr-FR')}`}>
-            <span class="odd-head">{i.team ? <Crest team={i.team} size={18} /> : null}{i.k}</span>
-            <span class="odd-val tnum">{i.v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <span class="odd-pct tnum">{Math.round((1 / i.v / inv) * 100)} %</span>
-          </div>
-        ))}
-      </div>
-      {odds.provider && <p class="odds-src">Cotes {odds.provider}, via ESPN</p>}
+      {list.length === 0 && <div class="tl-empty">Aucune cote entre 1,30 et 2,00 pour ce match.</div>}
+      {list.map((p) => (
+        <div class="pick" key={p.text}>
+          <span class="pick-text">{p.text}</span>
+          <span class="pick-odd tnum" title={p.derived ? 'Cote calculée à partir des cotes 1 N 2' : undefined}>
+            {p.derived ? '≈ ' : ''}
+            {fr(p.odds)}
+          </span>
+        </div>
+      ))}
+      <p class="odds-src">
+        {odds.provider ? `Cotes ${odds.provider}, via ESPN` : 'Cotes via ESPN'}
+        {list.some((p) => p.derived) ? ' · ≈ calculée à partir des cotes 1 N 2' : ''}
+      </p>
     </div>
   );
 }
@@ -151,7 +150,11 @@ function Lineups({ m, lineups, sport }: { m: Match; lineups: { home: Lineup; awa
   return (
     <div>
       <Pitch m={m} sport={sport} lineups={lineups} side={side} best={best} />
-      {rated.length > 0 && <p class="odds-src" style={{ margin: '-4px 0 12px' }}>Notes estimées par Scores à partir des statistiques ESPN.</p>}
+      <p class="pitch-legend">
+        <span>⚽️ but</span>
+        <span class="lg-assist"><AssistIcon /> passe décisive</span>
+        {rated.length > 0 && <span>notes estimées d'après les stats ESPN</span>}
+      </p>
       {(lineups.home.bench.length > 0 || lineups.away.bench.length > 0) && (
         <>
           <Segmented<'home' | 'away'> label="Remplaçants" value={side} onChange={setSide} options={[{ id: 'home', label: m.home.name }, { id: 'away', label: m.away.name }]} />
@@ -271,9 +274,9 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
       )}
 
       {summary?.odds && m.status === 'scheduled' && (
-        <Section title="Cotes">
+        <Section title="Cotes entre 1,30 et 2,00">
           <li style={{ listStyle: 'none' }}>
-            <OddsPanel m={m} odds={summary.odds} />
+            <OddsPanel m={m} odds={summary.odds} sport={comp.sport} />
           </li>
         </Section>
       )}
@@ -332,9 +335,9 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
       )}
 
       {summary?.odds && m.status !== 'scheduled' && (
-        <Section title="Cotes d'avant-match">
+        <Section title="Cotes d'avant-match · 1,30 à 2,00">
           <li style={{ listStyle: 'none' }}>
-            <OddsPanel m={m} odds={summary.odds} />
+            <OddsPanel m={m} odds={summary.odds} sport={comp.sport} />
           </li>
         </Section>
       )}

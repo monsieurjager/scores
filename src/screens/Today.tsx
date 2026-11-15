@@ -5,10 +5,9 @@ import { addDays, dayKeyOf, todayKey } from '../lib/date';
 import { DayStrip } from '../components/DayStrip';
 import { isStale } from '../lib/matchStats';
 import { useMatches } from '../hooks/useMatches';
-import { useUpcoming } from '../hooks/useUpcoming';
 import { useStored } from '../hooks/useStored';
 import { isFavMatch, useFavorites } from '../lib/favorites';
-import { effectiveComp, isFranceMatch, isOtherNation, matchesFilter, type SportFilter } from '../lib/filters';
+import { effectiveComp, matchesFilter, type SportFilter } from '../lib/filters';
 import { enabledCompetitions, useSettings } from '../lib/settings';
 import { useOnline } from '../hooks/useOnline';
 import { Chips, CompactCard, Empty, LiveCard, Section, Segmented, Skeletons } from '../components/ui';
@@ -26,13 +25,12 @@ const initialDay = () => {
   return d;
 };
 
-export function Today() {
+export function Today({ onUpcoming }: { onUpcoming: () => void }) {
   const [dayKey, setDayKey] = useState(initialDay);
   const [sport, setSport] = useStored<SportFilter>('filter.sport', 'all');
   const [comp, setComp] = useStored<string>('filter.comp', 'all');
   const [scrolled, setScrolled] = useState(false);
   const { state, retry, refresh } = useMatches(dayKey);
-  const upcomingAll = useUpcoming(true);
   const { keys: favKeys } = useFavorites();
   useSettings();
   const online = useOnline();
@@ -62,19 +60,8 @@ export function Today() {
   const activeComp = effectiveComp(sport, comp, compOptions.map((o) => o.id));
   const filter = (m: Match) => matchesFilter(m, sport, activeComp);
   const visible: Match[] = useMemo(() => (state.status === 'ready' ? state.matches.filter(filter) : []), [state, sport, activeComp]);
-  // « À venir » : après le jour affiché (aujourd'hui : les matchs du jour sont déjà dans la liste)
-  const upcomingNext = (upcomingAll ?? []).filter((m) => filter(m) && (isToday || dayKeyOf(m.kickoff) > dayKey));
-  const isFrance = isFranceMatch;
-  // Jour sans match : on montre le prochain match (après le jour affiché), plutôt qu'un écran vide.
+  // Jour sans match : renvoi vers l'onglet « À venir » (les matchs des autres jours n'ont rien à faire ici).
   const emptyDay = state.status === 'ready' && visible.length === 0;
-  const nextMatch = emptyDay ? upcomingNext.find((m) => dayKeyOf(m.kickoff) > dayKey) : undefined;
-  // Pas de doublon : on exclut ce qui est déjà affiché plus haut (liste du jour, prochain match).
-  // Ces sections n'ont de sens qu'aujourd'hui ou sur un jour vide.
-  const alreadyShown = new Set([...visible.map((m) => m.id), ...(nextMatch ? [nextMatch.id] : [])]);
-  const showUpcoming = isToday || emptyDay;
-  const franceNext = showUpcoming ? upcomingNext.filter((m) => isFrance(m) && !alreadyShown.has(m.id)).slice(0, 4) : [];
-  const nextNations = showUpcoming ? upcomingNext.filter((m) => isOtherNation(m) && !alreadyShown.has(m.id)).slice(0, 4) : [];
-  const nextClubs = showUpcoming ? upcomingNext.filter((m) => !isFrance(m) && !isOtherNation(m) && !alreadyShown.has(m.id)).slice(0, 8) : [];
   // Les matchs de mes équipes passent en premier, dans une section à part.
   const favMatches = visible.filter((m) => isFavMatch(m, favKeys)).sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || a.kickoff.localeCompare(b.kickoff));
   const others = visible.filter((m) => !isFavMatch(m, favKeys));
@@ -135,22 +122,12 @@ export function Today() {
         <div key={dayKey + sport + activeComp + state.status} class={`fade-in${slide ? ` slide-${slide}` : ''}`}>
           {state.status === 'loading' && <Skeletons />}
           {state.status === 'error' && <Empty error title="Impossible de charger les scores" text="Vérifie ta connexion, puis réessaie." action="Réessayer" onAction={retry} />}
-          {emptyDay && nextMatch && (
-            <Section title="Prochain match">
-              <CompactCard m={nextMatch} withDate />
-              <li style={{ listStyle: 'none' }}>
-                <button class="link-btn" onClick={() => setDayKey(dayKeyOf(nextMatch.kickoff))}>
-                  Aller à ce jour
-                </button>
-              </li>
-            </Section>
-          )}
-          {emptyDay && !nextMatch && upcomingAll !== null && (
+          {emptyDay && (
             <Empty
-              title="Aucun match"
-              text={sport === 'all' && activeComp === 'all' ? 'Rien au programme de tes compétitions pour le moment.' : 'Aucun match à venir pour ce filtre.'}
-              action={isToday ? undefined : "Revenir à aujourd'hui"}
-              onAction={() => setDayKey(todayKey())}
+              title="Aucun match ce jour"
+              text={sport === 'all' && activeComp === 'all' ? 'Rien au programme de tes compétitions.' : 'Rien au programme pour ce filtre.'}
+              action="Voir les matchs à venir"
+              onAction={onUpcoming}
             />
           )}
           {favMatches.length > 0 && (
@@ -171,21 +148,6 @@ export function Today() {
           {finished.length > 0 && (
             <Section title="Terminés">
               {finished.map((m) => <CompactCard key={m.id} m={m} />)}
-            </Section>
-          )}
-          {state.status === 'ready' && franceNext.length > 0 && (
-            <Section title="Équipe de France · à venir">
-              {franceNext.map((m) => <CompactCard key={m.id} m={m} withDate />)}
-            </Section>
-          )}
-          {state.status === 'ready' && nextNations.length > 0 && (
-            <Section title="Sélections · à venir">
-              {nextNations.map((m) => <CompactCard key={m.id} m={m} withDate />)}
-            </Section>
-          )}
-          {state.status === 'ready' && nextClubs.length > 0 && (
-            <Section title="Prochains matchs">
-              {nextClubs.map((m) => <CompactCard key={m.id} m={m} withDate />)}
             </Section>
           )}
         </div>
