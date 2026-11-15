@@ -40,6 +40,15 @@ export interface LineupPlayer {
   position?: string;
   subbedIn: boolean;
   subbedOut: boolean;
+  /** Faits du joueur (football : stats ESPN ; rugby : essais relevés dans les faits de match) */
+  goals?: number;
+  assists?: number;
+  ownGoals?: number;
+  tries?: number;
+  yellow?: boolean;
+  red?: boolean;
+  /** Note estimée par Scores (football), sur 10 */
+  rating?: number;
 }
 
 export interface Lineup {
@@ -79,6 +88,15 @@ export interface MatchSummary {
   form?: { home: FormResult[]; away: FormResult[] };
   /** Dernières confrontations directes. */
   h2h: HeadToHead[];
+  /** Cotes 1 N 2 (cotes décimales) */
+  odds?: Odds;
+}
+
+export interface Odds {
+  home: number;
+  draw?: number;
+  away: number;
+  provider?: string;
 }
 
 export interface StandingRow {

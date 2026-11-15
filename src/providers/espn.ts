@@ -1,6 +1,7 @@
-import type { Competition, CompetitionView, EventKind, FormResult, HeadToHead, Lineup, LineupPlayer, Match, MatchEvent, MatchProvider, MatchSummary, SummaryStat, MatchStatus, StandingRow, StandingsTable, Team, TeamEntry } from '../types';
+import type { Competition, CompetitionView, EventKind, FormResult, HeadToHead, Lineup, LineupPlayer, Match, MatchEvent, MatchProvider, MatchSummary, Odds, SummaryStat, MatchStatus, StandingRow, StandingsTable, Team, TeamEntry } from '../types';
 import teamsData from '../data/teams.json';
 import { COMPETITIONS } from '../config/competitions';
+import { decimalOdds, rate, roleOf, type PlayerStats } from '../lib/ratings';
 import { frenchName } from '../config/teamNames';
 import { enabledCompetitions } from '../lib/settings';
 import { knownRestDay, rememberCalendar } from '../lib/calendar';
@@ -194,7 +195,9 @@ export const espnProvider: MatchProvider = {
     const j = (await res.json()) as {
       gameInfo?: { venue?: { fullName?: string; address?: { city?: string } }; attendance?: number };
       boxscore?: { teams?: { homeAway: 'home' | 'away'; statistics?: { name: string; displayValue: string }[] }[] };
-      rosters?: { homeAway: 'home' | 'away'; team?: { id?: string }; formation?: string; roster?: { starter?: boolean; jersey?: string; subbedIn?: boolean; subbedOut?: boolean; position?: { abbreviation?: string }; athlete: Ath }[] }[];
+      rosters?: { homeAway: 'home' | 'away'; team?: { id?: string }; formation?: string; roster?: { starter?: boolean; jersey?: string; subbedIn?: boolean; subbedOut?: boolean; position?: { abbreviation?: string }; athlete: Ath; stats?: { name: string; value?: number }[] }[] }[];
+      header?: { competitions?: { status?: { type?: { state?: string } }; competitors?: { homeAway: 'home' | 'away'; score?: string }[] }[] };
+      pickcenter?: { provider?: { name?: string }; homeTeamOdds?: { moneyLine?: number }; awayTeamOdds?: { moneyLine?: number }; drawOdds?: { moneyLine?: number } }[];
       keyEvents?: { id: string; type: { text: string }; clock?: { value?: number; displayValue?: string }; team?: { id: string }; participants?: { athlete: Ath }[] }[];
       lastFiveGames?: { team: { id: string }; events?: { gameResult?: string; score?: string; gameDate?: string; opponent?: { displayName?: string } }[] }[];
       seasonseries?: { events?: { date?: string; competitors?: { homeAway: string; score?: string | { displayValue?: string }; team: { displayName?: string } }[] }[] }[];
@@ -225,10 +228,28 @@ export const espnProvider: MatchProvider = {
 
     // Compositions
     const nameOf = (a: Ath) => a.shortName ?? a.displayName ?? '—';
+    const hc = j.header?.competitions?.[0];
+    const started = !!hc?.status?.type?.state && hc.status.type.state !== 'pre';
+    const pts = (side: 'home' | 'away') => Number(hc?.competitors?.find((c) => c.homeAway === side)?.score ?? NaN);
     const lineup = (side: 'home' | 'away'): Lineup | null => {
       const r = j.rosters?.find((x) => x.homeAway === side);
       if (!r?.roster?.length) return null;
-      const players = r.roster.map((p): LineupPlayer & { starter: boolean } => ({ id: p.athlete.id, name: nameOf(p.athlete), number: p.jersey ?? '', position: p.position?.abbreviation, subbedIn: !!p.subbedIn, subbedOut: !!p.subbedOut, starter: !!p.starter }));
+      const [us, them] = side === 'home' ? [pts('home'), pts('away')] : [pts('away'), pts('home')];
+      const result = us > them ? 'W' : us < them ? 'L' : 'D';
+      const players = r.roster.map((p): LineupPlayer & { starter: boolean } => {
+        const pl: LineupPlayer & { starter: boolean } = { id: p.athlete.id, name: nameOf(p.athlete), number: p.jersey ?? '', position: p.position?.abbreviation, subbedIn: !!p.subbedIn, subbedOut: !!p.subbedOut, starter: !!p.starter };
+        if (comp.sport === 'football' && p.stats?.length) {
+          const st = (n: string) => p.stats!.find((x) => x.name === n)?.value ?? 0;
+          const ps: PlayerStats = { goals: st('totalGoals'), assists: st('goalAssists'), shotsOnTarget: st('shotsOnTarget'), saves: st('saves'), goalsConceded: st('goalsConceded'), foulsCommitted: st('foulsCommitted'), foulsSuffered: st('foulsSuffered'), yellow: st('yellowCards'), red: st('redCards'), ownGoals: st('ownGoals') };
+          if (ps.goals) pl.goals = ps.goals;
+          if (ps.assists) pl.assists = ps.assists;
+          if (ps.ownGoals) pl.ownGoals = ps.ownGoals;
+          if (ps.yellow) pl.yellow = true;
+          if (ps.red) pl.red = true;
+          if (started && (p.starter || p.subbedIn)) pl.rating = rate(ps, roleOf(p.position?.abbreviation), result, !!p.starter);
+        }
+        return pl;
+      });
       return { formation: r.formation, starters: players.filter((p) => p.starter), bench: players.filter((p) => !p.starter) };
     };
     const home = lineup('home');
@@ -272,6 +293,13 @@ export const espnProvider: MatchProvider = {
     }
     h2h.sort((x, y) => y.date.localeCompare(x.date));
 
+    // Cotes 1 N 2 (fournisseur indiqué par ESPN)
+    const pc = j.pickcenter?.[0];
+    const mlH = pc?.homeTeamOdds?.moneyLine;
+    const mlA = pc?.awayTeamOdds?.moneyLine;
+    const mlD = pc?.drawOdds?.moneyLine;
+    const odds: Odds | undefined = mlH && mlA ? { home: decimalOdds(mlH), away: decimalOdds(mlA), draw: mlD ? decimalOdds(mlD) : undefined, provider: pc?.provider?.name } : undefined;
+
     const v = j.gameInfo?.venue;
     const summary: MatchSummary = {
       venue: v?.fullName ? [v.fullName, v.address?.city].filter(Boolean).join(', ') : undefined,
@@ -281,6 +309,7 @@ export const espnProvider: MatchProvider = {
       subs,
       form: fh.length || fa.length ? { home: fh, away: fa } : undefined,
       h2h: h2h.slice(0, 5),
+      odds,
     };
     return summary;
   },

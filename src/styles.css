@@ -252,6 +252,37 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .tl-ico.yellow { background: #f5c518; }
 .tl-ico.red { background: #ff453a; }
 .tl-ico svg { width: 16px; height: 16px; }
+.tl-ico.goal { width: 32px; height: 32px; padding: 0; border-radius: 16px; background: var(--fg); color: var(--bg); }
+.tl-ico.goal svg { width: 24px; height: 24px; stroke-width: 1.8; }
+.tl-row.is-goal .tl-player { font-size: 16px; font-weight: 700; }
+.tl-empty { padding: 12px 2px; color: var(--sub); font-size: 14px; text-align: center; }
+.tl-more { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 4px; padding: 12px 0 4px; border: 0; border-top: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); background: none; color: var(--accent, var(--fg)); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tl-more svg { transition: transform .2s; }
+.odds { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.odd { display: grid; justify-items: center; gap: 4px; padding: 10px 4px; border-radius: 16px; background: color-mix(in srgb, var(--skeleton) 70%, transparent); }
+.odd.fav { background: color-mix(in srgb, var(--fg) 12%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--fg) 35%, transparent); }
+.odd-head { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--sub); }
+.odd-val { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.odd-pct { font-size: 12px; color: var(--sub); }
+.odds-src { margin: 10px 2px 0; font-size: 11.5px; color: var(--sub); text-align: center; }
+.rate { display: inline-block; padding: 1px 5px; border-radius: 7px; font-size: 11px; font-weight: 800; line-height: 1.35; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rate.top { background: #1d7cf2; }
+.rate.good { background: #1ea952; }
+.rate.avg { background: #e8901a; }
+.rate.low { background: #e5484d; }
+.facts { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; vertical-align: middle; }
+.fact { display: inline-flex; align-items: center; gap: 1px; font-size: 10px; font-weight: 800; color: #fff; }
+.fact svg { width: 14px; height: 14px; }
+.fact.og svg circle { fill: #ffb3b3; }
+.fact.boot { color: #cfd3dc; }
+.fact.card { width: 9px; height: 12px; border-radius: 2px; }
+.fact.card.yellow { background: #f5c518; }
+.fact.card.red { background: #ff453a; }
+.fact.outarrow { color: #ff6b5e; }
+.lu-row.unused { opacity: .55; }
+.lu-in { color: #1ea952; font-weight: 700; }
+.lu-name .fact { color: var(--fg); }
+.lu-name .fact.boot { color: var(--sub); }
 .ht-line { text-align: center; font-size: 13px; font-weight: 600; color: var(--sub); margin-top: 2px; }
 .st { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
 .st th { font-size: 11px; font-weight: 700; color: var(--sub); text-align: right; padding: 8px 4px; }
@@ -365,11 +396,13 @@ button.detail-team:active { transform: scale(.96); }
 /* ===== Compositions sur le terrain ===== */
 .pitch { position: relative; width: 100%; aspect-ratio: 68 / 105; margin: 0 0 12px; border-radius: 22px; overflow: hidden; background: linear-gradient(180deg, color-mix(in srgb, #2f8f55 34%, var(--bg)), color-mix(in srgb, #2f8f55 22%, var(--bg))); border: 1px solid var(--edge); }
 .pitch.rugby { aspect-ratio: 70 / 112; margin-top: 12px; }
-.pitch svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: rgba(255, 255, 255, 0.28); stroke-width: 0.35; vector-effect: non-scaling-stroke; }
-.pitch svg * { vector-effect: non-scaling-stroke; stroke-width: 1.2px; }
+.pitch > svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: rgba(255, 255, 255, 0.28); stroke-width: 0.35; vector-effect: non-scaling-stroke; }
+.pitch > svg * { vector-effect: non-scaling-stroke; stroke-width: 1.2px; }
 .pl { position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 2px; width: 70px; pointer-events: none; }
-.pl-dot { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 0 0 1.5px rgba(255, 255, 255, 0.35); font-variant-numeric: tabular-nums; }
-.pl-dot.out { opacity: 0.55; }
+.pl-dot { position: relative; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 0 0 1.5px rgba(255, 255, 255, 0.35); font-variant-numeric: tabular-nums; }
+.pl-dot.out { opacity: 1; }
+.pl-dot .rate { position: absolute; top: -9px; left: 19px; padding: 0 4px; font-size: 10px; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.pl .facts { margin: -2px 0 0; min-height: 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
 .pl-name { max-width: 70px; font-size: 10.5px; font-weight: 700; line-height: 1.1; color: #fff; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); }
 .pitch-tag { position: absolute; left: 12px; font-size: 11px; font-weight: 700; color: rgba(255, 255, 255, 0.85); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
 .pitch-tag.top { top: 8px; }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'preact/hooks';
-import type { FormResult, Lineup, Match, MatchEvent, MatchSummary } from '../types';
+import type { FormResult, Lineup, Match, MatchEvent, MatchSummary, Odds } from '../types';
 import { competitionById } from '../config/competitions';
 import { formatShortDate, formatTime } from '../lib/date';
 import { halfTimeScore, isStale } from '../lib/matchStats';
@@ -8,7 +8,7 @@ import { useSummary } from '../hooks/useSummary';
 import { useStandings } from '../hooks/useStandings';
 import { Crest, Section, Segmented } from './ui';
 import { Standings } from './Standings';
-import { Pitch } from './Pitch';
+import { Pitch, PlayerFacts, RatingPill } from './Pitch';
 import { Sheet } from './Sheet';
 import { IconBall } from './icons';
 
@@ -38,17 +38,25 @@ function EventIcon({ e }: { e: MatchEvent }) {
   if (e.kind === 'yellow' || e.kind === 'red') return <span class={`tl-ico ${e.kind}`} aria-hidden="true" />;
   if (e.points > 0 && (e.kind === 'try' || e.kind === 'conversion' || e.kind === 'penaltygoal' || e.kind === 'dropgoal' || e.kind === 'penaltytry')) return <span class="tl-ico" aria-hidden="true">+{e.points}</span>;
   return (
-    <span class="tl-ico" aria-hidden="true">
+    <span class="tl-ico goal" aria-hidden="true">
       <IconBall />
     </span>
   );
 }
 
-function Timeline({ m, events }: { m: Match; events: MatchEvent[] }) {
+const isScoring = (e: MatchEvent) => e.kind === 'goal' || e.kind === 'penalty' || e.kind === 'owngoal' || e.points > 0;
+
+function Timeline({ m, events, rugby }: { m: Match; events: MatchEvent[]; rugby: boolean }) {
+  const [all, setAll] = useState(false);
+  const scoring = events.filter(isScoring);
+  const shown = all ? events : scoring;
+  const others = events.length - scoring.length;
   return (
     <div class="glass-panel">
-      {events.map((e) => {
+      {shown.length === 0 && <div class="tl-empty">{rugby ? 'Aucun point marqué' : 'Aucun but'}</div>}
+      {shown.map((e) => {
         const home = e.teamId === m.home.id;
+        const goal = isScoring(e);
         const side = (
           <div class={`tl-side ${home ? 'home' : 'away'}`}>
             <span class="tl-player">{e.player ?? '—'}</span>
@@ -56,7 +64,7 @@ function Timeline({ m, events }: { m: Match; events: MatchEvent[] }) {
           </div>
         );
         return (
-          <div class="tl-row" key={e.id}>
+          <div class={`tl-row${goal ? ' is-goal' : ''}`} key={e.id}>
             {home ? side : <div />}
             <div class="tl-mid">
               <EventIcon e={e} />
@@ -66,6 +74,39 @@ function Timeline({ m, events }: { m: Match; events: MatchEvent[] }) {
           </div>
         );
       })}
+      {others > 0 && (
+        <button class="tl-more" onClick={() => setAll(!all)} aria-expanded={all}>
+          {all ? (rugby ? 'Points seulement' : 'Buts seulement') : `Tous les faits de jeu (${others} de plus)`}
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style={{ transform: all ? 'rotate(180deg)' : undefined }}>
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Cotes 1 N 2 et probabilités correspondantes (marge du bookmaker retirée). */
+function OddsPanel({ m, odds }: { m: Match; odds: Odds }) {
+  const items = [
+    { k: '1', team: m.home, v: odds.home, label: m.home.name },
+    ...(odds.draw ? [{ k: 'N', team: undefined, v: odds.draw, label: 'Match nul' }] : []),
+    { k: '2', team: m.away, v: odds.away, label: m.away.name },
+  ];
+  const inv = items.reduce((s, i) => s + 1 / i.v, 0);
+  const best = Math.min(...items.map((i) => i.v));
+  return (
+    <div class="glass-panel">
+      <div class="odds">
+        {items.map((i) => (
+          <div class={`odd${i.v === best ? ' fav' : ''}`} key={i.k} aria-label={`${i.label} : cote ${i.v.toLocaleString('fr-FR')}`}>
+            <span class="odd-head">{i.team ? <Crest team={i.team} size={18} /> : null}{i.k}</span>
+            <span class="odd-val tnum">{i.v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span class="odd-pct tnum">{Math.round((1 / i.v / inv) * 100)} %</span>
+          </div>
+        ))}
+      </div>
+      {odds.provider && <p class="odds-src">Cotes {odds.provider}, via ESPN</p>}
     </div>
   );
 }
@@ -96,38 +137,55 @@ function Stats({ summary }: { summary: MatchSummary }) {
 
 function Lineups({ m, lineups, sport }: { m: Match; lineups: { home: Lineup; away: Lineup }; sport: 'football' | 'rugby' }) {
   const [side, setSide] = useState<'home' | 'away'>('home');
-  const l = lineups[side];
-  const team = side === 'home' ? m.home : m.away;
-  const row = (p: Lineup['starters'][number]) => (
-    <li class="lu-row" key={p.id}>
-      <span class="lu-num tnum">{p.number}</span>
-      <span class="lu-name">{p.name}</span>
-      <span class="lu-meta">
-        {p.subbedOut ? 'Sorti' : p.subbedIn ? 'Entré' : ''}
-        {p.position ? <span class="lu-pos">{p.position}</span> : null}
-      </span>
-    </li>
-  );
+  const rated = [...lineups.home.starters, ...lineups.home.bench, ...lineups.away.starters, ...lineups.away.bench].filter((p) => p.rating != null);
+  const best = rated.length ? rated.reduce((a, b) => (b.rating! > a.rating! ? b : a)).id : undefined;
+  if (sport === 'rugby')
+    return (
+      <div>
+        <Segmented<'home' | 'away'> label="Équipe" value={side} onChange={setSide} options={[{ id: 'home', label: m.home.name }, { id: 'away', label: m.away.name }]} />
+        <Pitch m={m} sport={sport} lineups={lineups} side={side} best={best} />
+      </div>
+    );
+  // Football : les titulaires sur le terrain, puis les remplaçants (entrés en jeu d'abord)
+  const bench = [...lineups[side].bench].sort((a, b) => Number(b.subbedIn) - Number(a.subbedIn));
   return (
     <div>
-      {sport === 'football' && <Pitch m={m} sport={sport} lineups={lineups} side={side} />}
-      <Segmented<'home' | 'away'> label="Équipe" value={side} onChange={setSide} options={[{ id: 'home', label: m.home.name }, { id: 'away', label: m.away.name }]} />
-      {sport === 'rugby' && <Pitch m={m} sport={sport} lineups={lineups} side={side} />}
-      <div class="glass-panel" style={{ marginTop: 12 }}>
-        <div class="lu-head">
-          <span>{team.name}</span>
-          {l.formation && <span class="tnum">{l.formation}</span>}
-        </div>
-        <ul class="lu-list">{l.starters.map(row)}</ul>
-        {l.bench.length > 0 && (
-          <>
-            <div class="lu-sub">Remplaçants</div>
-            <ul class="lu-list">{l.bench.map(row)}</ul>
-          </>
-        )}
-      </div>
+      <Pitch m={m} sport={sport} lineups={lineups} side={side} best={best} />
+      {rated.length > 0 && <p class="odds-src" style={{ margin: '-4px 0 12px' }}>Notes estimées par Scores à partir des statistiques ESPN.</p>}
+      {(lineups.home.bench.length > 0 || lineups.away.bench.length > 0) && (
+        <>
+          <Segmented<'home' | 'away'> label="Remplaçants" value={side} onChange={setSide} options={[{ id: 'home', label: m.home.name }, { id: 'away', label: m.away.name }]} />
+          <div class="glass-panel" style={{ marginTop: 12 }}>
+            <div class="lu-head">
+              <span>Remplaçants</span>
+            </div>
+            <ul class="lu-list">
+              {bench.map((p) => (
+                <li class={`lu-row${p.subbedIn ? '' : ' unused'}`} key={p.id}>
+                  <span class="lu-num tnum">{p.number}</span>
+                  <span class="lu-name">
+                    {p.name}
+                    <PlayerFacts p={p} />
+                  </span>
+                  <span class="lu-meta">
+                    {p.subbedIn && <span class="lu-in">Entré</span>}
+                    {p.rating != null && <RatingPill r={p.rating} best={p.id === best} />}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
     </div>
   );
+}
+
+/** Rugby : essais de chaque joueur, relevés dans les faits de match (ESPN ne donne pas de stats individuelles). */
+function withTries(l: { home: Lineup; away: Lineup }, events: MatchEvent[]) {
+  const count = (name: string) => events.filter((e) => (e.kind === 'try' || e.kind === 'penaltytry') && e.player === name).length;
+  const add = (x: Lineup): Lineup => ({ ...x, starters: x.starters.map((p) => ({ ...p, tries: count(p.name) || undefined })), bench: x.bench.map((p) => ({ ...p, tries: count(p.name) || undefined })) });
+  return { home: add(l.home), away: add(l.away) };
 }
 
 /** Feuille de détail d'un match : score, mi-temps, buts et cartons, classement. */
@@ -168,6 +226,7 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
   const hasEvents = events.length > 0;
   const updatedAt = new Date(lastUpdateAt()).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const national = !!comp.onlyTeams;
+  const lineups = summary?.lineups && comp.sport === 'rugby' ? withTries(summary.lineups, events) : summary?.lineups;
   const openTeam = (side: 'home' | 'away') => pushSheet({ type: 'team', sport: comp.sport, team: m[side], national });
 
   return (
@@ -211,9 +270,17 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
         </p>
       )}
 
-      <Section title={comp.sport === 'rugby' ? 'Essais, points et cartons' : 'Buts et cartons'}>
+      {summary?.odds && m.status === 'scheduled' && (
+        <Section title="Cotes">
+          <li style={{ listStyle: 'none' }}>
+            <OddsPanel m={m} odds={summary.odds} />
+          </li>
+        </Section>
+      )}
+
+      <Section title={comp.sport === 'rugby' ? 'Points' : 'Buts'}>
         <li style={{ listStyle: 'none' }}>
-          {hasEvents ? <Timeline m={m} events={events} /> : <div class="glass-panel note">{stale ? "La source n'a pas transmis le résultat de ce match." : m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>}
+          {hasEvents ? <Timeline m={m} events={events} rugby={comp.sport === 'rugby'} /> : <div class="glass-panel note">{stale ? "La source n'a pas transmis le résultat de ce match." : m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>}
         </li>
       </Section>
 
@@ -264,13 +331,21 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
         </Section>
       )}
 
+      {summary?.odds && m.status !== 'scheduled' && (
+        <Section title="Cotes d'avant-match">
+          <li style={{ listStyle: 'none' }}>
+            <OddsPanel m={m} odds={summary.odds} />
+          </li>
+        </Section>
+      )}
+
       {!summary?.lineups && m.status === 'scheduled' && summary !== undefined && (
         <p class="note">Les compositions apparaîtront ici dès leur publication, en général une heure avant le coup d'envoi.</p>
       )}
-      {summary?.lineups && (
+      {lineups && (
         <Section title="Compositions">
           <li style={{ listStyle: 'none' }}>
-            <Lineups m={m} lineups={summary.lineups} sport={comp.sport} />
+            <Lineups m={m} lineups={lineups} sport={comp.sport} />
           </li>
         </Section>
       )}
