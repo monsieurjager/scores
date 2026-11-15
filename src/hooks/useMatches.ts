@@ -84,5 +84,5 @@ export function useMatches(dayKey: string) {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, [state, dayKey, load]);
 
-  return { state, retry: () => load(false) };
+  return { state, retry: () => load(false), refresh: () => load(true) };
 }

@@ -48,6 +48,26 @@ export interface Lineup {
   bench: LineupPlayer[];
 }
 
+export interface FormResult {
+  result: 'W' | 'D' | 'L';
+  score: string;
+  opponent: string;
+  date: string;
+}
+
+export interface HeadToHead {
+  date: string;
+  home: string;
+  away: string;
+  homeScore: string;
+  awayScore: string;
+}
+
+export interface CompetitionView {
+  tables: StandingsTable[];
+  matchday: Match[];
+}
+
 /** Compléments du détail : statistiques, compositions, remplacements, stade. */
 export interface MatchSummary {
   venue?: string;
@@ -55,6 +75,10 @@ export interface MatchSummary {
   stats: SummaryStat[];
   lineups?: { home: Lineup; away: Lineup };
   subs: MatchEvent[];
+  /** 5 derniers résultats de chaque équipe (le plus récent en premier). */
+  form?: { home: FormResult[]; away: FormResult[] };
+  /** Dernières confrontations directes. */
+  h2h: HeadToHead[];
 }
 
 export interface StandingRow {
@@ -96,6 +120,8 @@ export interface Competition {
   espn: { sport: 'soccer' | 'rugby'; league: string };
   /** Rugby : ne garder que les matchs impliquant ces équipes. */
   onlyTeams?: string[];
+  /** Clubs : ne garder que les matchs impliquant ces équipes (identifiants ESPN). */
+  onlyTeamIds?: string[];
 }
 
 export interface TeamEntry {
@@ -112,6 +138,10 @@ export interface MatchProvider {
   getSummary(comp: Competition, matchId: string, signal?: AbortSignal): Promise<MatchSummary | null>;
   /** Classement de la compétition (le groupe qui contient ces équipes), ou null s'il n'existe pas. */
   getStandings(comp: Competition, teamIds: string[], signal?: AbortSignal): Promise<StandingsTable | null>;
+  /** Calendrier d'une équipe (résultats et matchs à venir) dans les compétitions suivies. */
+  getTeamMatches(sport: SportId, teamId: string, national: boolean, signal?: AbortSignal): Promise<Match[]>;
+  /** Page d'une compétition : classements (groupes utiles) et journée en cours. */
+  getCompetition(comp: Competition, signal?: AbortSignal): Promise<CompetitionView>;
   /** Équipes proposées dans le sélecteur de favoris. */
   getTeams(signal?: AbortSignal): Promise<TeamEntry[]>;
 }

@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
-import type { Lineup, Match, MatchEvent, MatchSummary, StandingsTable } from '../types';
+import { useMemo, useState } from 'preact/hooks';
+import type { FormResult, Lineup, Match, MatchEvent, MatchSummary } from '../types';
 import { competitionById } from '../config/competitions';
 import { formatShortDate, formatTime } from '../lib/date';
 import { halfTimeScore, isStale } from '../lib/matchStats';
-import { lastUpdateAt, useMatch } from '../lib/matchStore';
+import { lastUpdateAt, pushSheet, useMatch } from '../lib/matchStore';
 import { useSummary } from '../hooks/useSummary';
 import { useStandings } from '../hooks/useStandings';
 import { Crest, Section, Segmented } from './ui';
+import { Standings } from './Standings';
+import { Sheet } from './Sheet';
 import { IconBall } from './icons';
 
 const RUGBY_LABEL: Record<string, string> = { try: 'Essai', conversion: 'Transformation', penaltygoal: 'Pénalité', dropgoal: 'Drop', penaltytry: 'Essai de pénalité' };
@@ -125,79 +127,32 @@ function Lineups({ m, lineups }: { m: Match; lineups: { home: Lineup; away: Line
   );
 }
 
-function Standings({ table, highlight }: { table: StandingsTable; highlight: string[] }) {
-  const [all, setAll] = useState(false);
-  const rows = table.rows;
-  const idx = rows.map((r, i) => (highlight.includes(r.team.id) ? i : -1)).filter((i) => i >= 0);
-  // Équipes introuvables dans le tableau : on montre le haut du classement plutôt qu'un tableau vide.
-  const compact = rows.length > 12 && !all;
-  const window = idx.length > 0 ? (i: number) => idx.some((h) => Math.abs(h - i) <= 2) : (i: number) => i < 8;
-  const shown = compact ? rows.filter((_, i) => window(i)) : rows;
-  const dash = (n: number | null) => (n == null ? '–' : n);
+/** Feuille de détail d'un match : score, mi-temps, buts et cartons, classement. */
+const RESULT_LABEL = { W: 'V', D: 'N', L: 'D' } as const;
+const RESULT_TEXT = { W: 'Victoire', D: 'Nul', L: 'Défaite' } as const;
+
+/** 5 derniers résultats, du plus ancien (à gauche) au plus récent (à droite). */
+export function FormPills({ results }: { results: FormResult[] }) {
+  const ordered = [...results].sort((a, b) => a.date.localeCompare(b.date)).slice(-5);
   return (
-    <div class="glass-panel">
-      <table class="st">
-        <thead>
-          <tr>
-            <th scope="col">#</th>
-            <th scope="col">Équipe</th>
-            <th scope="col" title="Joués">J</th>
-            <th scope="col" title="Victoires">G</th>
-            <th scope="col" title="Nuls">N</th>
-            <th scope="col" title="Défaites">P</th>
-            <th scope="col" title="Différence">Diff</th>
-            <th scope="col" title="Points">Pts</th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((r) => (
-            <tr key={r.team.id} class={highlight.includes(r.team.id) ? 'hl' : ''}>
-              <td>{r.rank}</td>
-              <td>
-                <span class="st-team">
-                  <Crest team={r.team} size={20} />
-                  <span>{r.team.name}</span>
-                </span>
-              </td>
-              <td>{dash(r.played)}</td>
-              <td>{dash(r.won)}</td>
-              <td>{dash(r.drawn)}</td>
-              <td>{dash(r.lost)}</td>
-              <td>{r.diff || '–'}</td>
-              <td class="pts">{dash(r.points)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {rows.length > 12 && (
-        <button class="link-btn" onClick={() => setAll(!all)}>
-          {all ? 'Réduire' : 'Voir le classement complet'}
-        </button>
-      )}
-    </div>
+    <span class="form-pills">
+      {ordered.map((r, i) => (
+        <span key={i} class={`form-pill ${r.result}`} title={`${RESULT_TEXT[r.result]} ${r.score} contre ${r.opponent}`} aria-label={`${RESULT_TEXT[r.result]} ${r.score} contre ${r.opponent}`}>
+          {RESULT_LABEL[r.result]}
+        </span>
+      ))}
+    </span>
   );
 }
 
-/** Feuille de détail d'un match : score, mi-temps, buts et cartons, classement. */
-export function MatchDetail({ id, onClose }: { id: string; onClose: () => void }) {
+/** Feuille de détail d'un match : score, mi-temps, faits de match, stats, compositions, forme, confrontations, classement. */
+export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; onClose: () => void; canGoBack?: boolean }) {
   const m = useMatch(id);
   const comp = m ? competitionById(m.competitionId) : undefined;
   const ids = useMemo(() => (m ? [m.home.id, m.away.id] : []), [m?.home.id, m?.away.id]);
   const standings = useStandings(comp, ids);
   const live0 = m?.status === 'live';
   const summary = useSummary(comp, id, !!live0);
-
-  // Fermeture à Échap ; on fige le défilement de la page derrière la feuille.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    const prev = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.documentElement.style.overflow = prev;
-    };
-  }, []);
 
   if (!m || !comp) return null;
   const live = m.status === 'live';
@@ -208,95 +163,126 @@ export function MatchDetail({ id, onClose }: { id: string; onClose: () => void }
   const events = [...(m.events ?? []), ...(summary?.subs ?? [])].sort((a, b) => a.seconds - b.seconds);
   const hasEvents = events.length > 0;
   const updatedAt = new Date(lastUpdateAt()).toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const national = !!comp.onlyTeams;
+  const openTeam = (side: 'home' | 'away') => pushSheet({ type: 'team', sport: comp.sport, team: m[side], national });
 
   return (
-    <div class="sheet" role="dialog" aria-modal="true" aria-label={`${m.home.name} contre ${m.away.name}`}>
-      <div class="sheet-head">
-        <h2 class="muted" style={{ fontSize: '15px', fontWeight: 700 }}>
-          {comp.name}
-        </h2>
-        <button class="pill-btn glass" onClick={onClose}>
-          Fermer
-        </button>
-      </div>
-      <div class="sheet-body">
-        <div class="detail-hero">
-          <div class="detail-teams">
-            <div class="detail-team">
-              <Crest team={m.home} size={64} />
-              <span>{m.home.name}</span>
-            </div>
-            <div class="detail-mid">
-              {hasScore ? (
-                <div class="detail-score tnum">
-                  {m.homeScore} – {m.awayScore}
-                </div>
-              ) : (
-                <div class="detail-time tnum">{formatTime(m.kickoff)}</div>
-              )}
-              <div class={`detail-status${live ? ' is-live' : ''}`}>
-                {live && <span class="live-dot" />}
-                {live ? m.clock : done ? 'Terminé' : m.status === 'postponed' ? 'Reporté' : stale ? 'Score non communiqué' : formatShortDate(m.kickoff)}
+    <Sheet title={comp.name} onTitle={() => pushSheet({ type: 'comp', id: comp.id })} label={`${m.home.name} contre ${m.away.name}`} canGoBack={canGoBack} onBack={onClose}>
+      <div class="detail-hero">
+        <div class="detail-teams">
+          <button class="detail-team" onClick={() => openTeam('home')} aria-label={`Fiche de ${m.home.name}`}>
+            <Crest team={m.home} size={64} />
+            <span>{m.home.name}</span>
+          </button>
+          <div class="detail-mid">
+            {hasScore ? (
+              <div class="detail-score tnum">
+                {m.homeScore} – {m.awayScore}
               </div>
-              {ht && (
-                <div class="ht-line tnum">
-                  Mi-temps {ht.home} – {ht.away}
-                </div>
-              )}
-              {live && lastUpdateAt() > 0 && <div class="ht-line tnum">Actualisé à {updatedAt}</div>}
+            ) : (
+              <div class="detail-time tnum">{formatTime(m.kickoff)}</div>
+            )}
+            <div class={`detail-status${live ? ' is-live' : ''}`}>
+              {live && <span class="live-dot" />}
+              {live ? m.clock : done ? 'Terminé' : m.status === 'postponed' ? 'Reporté' : stale ? 'Score non communiqué' : formatShortDate(m.kickoff)}
             </div>
-            <div class="detail-team">
-              <Crest team={m.away} size={64} />
-              <span>{m.away.name}</span>
-            </div>
+            {ht && (
+              <div class="ht-line tnum">
+                Mi-temps {ht.home} – {ht.away}
+              </div>
+            )}
+            {live && lastUpdateAt() > 0 && <div class="ht-line tnum">Actualisé à {updatedAt}</div>}
           </div>
+          <button class="detail-team" onClick={() => openTeam('away')} aria-label={`Fiche de ${m.away.name}`}>
+            <Crest team={m.away} size={64} />
+            <span>{m.away.name}</span>
+          </button>
         </div>
+      </div>
 
-        {summary?.venue && (
-          <p class="venue">
-            {summary.venue}
-            {summary.attendance ? ` · ${summary.attendance.toLocaleString('fr-FR')} spectateurs` : ''}
-          </p>
-        )}
+      {summary?.venue && (
+        <p class="venue">
+          {summary.venue}
+          {summary.attendance ? ` · ${summary.attendance.toLocaleString('fr-FR')} spectateurs` : ''}
+        </p>
+      )}
 
-        <Section title={comp.sport === 'rugby' ? 'Essais, points et cartons' : 'Buts et cartons'}>
-          {/* Section attend des <li> : on utilise un <li> unique */}
+      <Section title={comp.sport === 'rugby' ? 'Essais, points et cartons' : 'Buts et cartons'}>
+        <li style={{ listStyle: 'none' }}>
+          {hasEvents ? <Timeline m={m} events={events} /> : <div class="glass-panel note">{stale ? "La source n'a pas transmis le résultat de ce match." : m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>}
+        </li>
+      </Section>
+
+      {summary && summary.stats.length > 0 && (
+        <Section title="Statistiques">
           <li style={{ listStyle: 'none' }}>
-            {hasEvents ? <Timeline m={m} events={events} /> : <div class="glass-panel note">{stale ? 'La source n\'a pas transmis le résultat de ce match.' : m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>}
+            <Stats summary={summary} />
           </li>
         </Section>
+      )}
 
-        {summary && summary.stats.length > 0 && (
-          <Section title="Statistiques">
-            <li style={{ listStyle: 'none' }}>
-              <Stats summary={summary} />
-            </li>
-          </Section>
-        )}
-        {summary?.lineups && (
-          <Section title="Compositions">
-            <li style={{ listStyle: 'none' }}>
-              <Lineups m={m} lineups={summary.lineups} />
-            </li>
-          </Section>
-        )}
+      {summary?.form && (
+        <Section title="Forme récente">
+          <li style={{ listStyle: 'none' }}>
+            <div class="glass-panel">
+              {(['home', 'away'] as const).map((side) => (
+                <div class="form-row" key={side}>
+                  <span class="form-team">
+                    <Crest team={m[side]} size={22} />
+                    <span>{m[side].name}</span>
+                  </span>
+                  <FormPills results={summary.form![side]} />
+                </div>
+              ))}
+            </div>
+          </li>
+        </Section>
+      )}
 
-        {standings === undefined && (
-          <Section title="Classement">
-            <li class="card" style={{ padding: 16, listStyle: 'none' }} aria-busy="true">
-              <div class="skeleton skeleton-line" />
-              <div class="skeleton skeleton-line short" />
-            </li>
-          </Section>
-        )}
-        {standings && (
-          <Section title={`Classement · ${standings.title}`}>
-            <li style={{ listStyle: 'none' }}>
-              <Standings table={standings} highlight={ids} />
-            </li>
-          </Section>
-        )}
-      </div>
-    </div>
+      {summary && summary.h2h.length > 0 && (
+        <Section title="Confrontations directes">
+          <li style={{ listStyle: 'none' }}>
+            <div class="glass-panel">
+              {summary.h2h.map((h, i) => (
+                <div class="h2h-row" key={i}>
+                  <span class="muted small tnum">{h.date ? formatShortDate(h.date) : ''}</span>
+                  <span class="h2h-match">
+                    <span class="h2h-team">{h.home}</span>
+                    <span class="h2h-score tnum">
+                      {h.homeScore}–{h.awayScore}
+                    </span>
+                    <span class="h2h-team away">{h.away}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </li>
+        </Section>
+      )}
+
+      {summary?.lineups && (
+        <Section title="Compositions">
+          <li style={{ listStyle: 'none' }}>
+            <Lineups m={m} lineups={summary.lineups} />
+          </li>
+        </Section>
+      )}
+
+      {standings === undefined && (
+        <Section title="Classement">
+          <li class="card" style={{ padding: 16, listStyle: 'none' }} aria-busy="true">
+            <div class="skeleton skeleton-line" />
+            <div class="skeleton skeleton-line short" />
+          </li>
+        </Section>
+      )}
+      {standings && (
+        <Section title={`Classement · ${standings.title}`}>
+          <li style={{ listStyle: 'none' }}>
+            <Standings table={standings} highlight={ids} />
+          </li>
+        </Section>
+      )}
+    </Sheet>
   );
 }

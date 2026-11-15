@@ -9,6 +9,8 @@ import { isFavMatch, useFavorites } from '../lib/favorites';
 import { enabledCompetitions, useSettings } from '../lib/settings';
 import { useOnline } from '../hooks/useOnline';
 import { Chips, CompactCard, Empty, LiveCard, Section, Segmented, Skeletons } from '../components/ui';
+import { pushSheet } from '../lib/matchStore';
+import { useGestures } from '../hooks/useGestures';
 import { IconCalendar, IconChevron } from '../components/icons';
 
 type SportFilter = 'all' | 'football' | 'rugby';
@@ -24,7 +26,7 @@ export function Today() {
   const [sport, setSport] = useStored<SportFilter>('filter.sport', 'all');
   const [comp, setComp] = useStored<string>('filter.comp', 'all');
   const [scrolled, setScrolled] = useState(false);
-  const { state, retry } = useMatches(dayKey);
+  const { state, retry, refresh } = useMatches(dayKey);
   const upcomingAll = useUpcoming(true);
   const { keys: favKeys } = useFavorites();
   useSettings();
@@ -90,7 +92,13 @@ export function Today() {
   const live = others.filter((m) => m.status === 'live');
   const upcoming = others.filter((m) => m.status === 'scheduled' || m.status === 'postponed');
   const finished = others.filter((m) => m.status === 'finished');
-  const go = (n: number) => setDayKey(addDays(dayKey, n));
+  const [slide, setSlide] = useState<'' | 'next' | 'prev'>('');
+  const go = (n: number) => {
+    setSlide(n > 0 ? 'next' : 'prev');
+    setDayKey(addDays(dayKey, n));
+  };
+  // Balayer à gauche / à droite : jour suivant / précédent. Tirer vers le bas en haut de page : rafraîchir.
+  const { pull, refreshing, handlers } = useGestures({ onSwipe: (dir) => go(dir === 'left' ? 1 : -1), onRefresh: refresh });
 
   return (
     <>
@@ -127,7 +135,10 @@ export function Today() {
         </div>
       </header>
 
-      <main class="screen">
+      <main class="screen" {...handlers}>
+        <div class={`ptr${refreshing ? ' busy' : ''}`} style={{ height: `${refreshing ? 48 : pull}px`, opacity: refreshing ? 1 : Math.min(pull / 60, 1) }} aria-hidden={!refreshing}>
+          <span class="ptr-spin" style={{ transform: `rotate(${pull * 4}deg)` }} />
+        </div>
         <div class="large-title">
           {isRelativeDay(dayKey) && <p>{dayLong(dayKey).toUpperCase()}</p>}
           <h1>{dayLabel(dayKey)}</h1>
@@ -137,9 +148,14 @@ export function Today() {
         <div class="filters">
           <Segmented<SportFilter> label="Sport" value={sport} onChange={(v) => { setSport(v); setComp('all'); }} options={[{ id: 'all', label: 'Tout' }, ...SPORTS.map((s) => ({ id: s.id as SportFilter, label: s.label }))]} />
           {showChips && <Chips value={activeComp} options={compOptions} onChange={setComp} />}
+          {showChips && COMPETITIONS.some((c) => c.id === activeComp) && (
+            <button class="comp-link" onClick={() => pushSheet({ type: 'comp', id: activeComp })}>
+              Classement et journée · {COMPETITIONS.find((c) => c.id === activeComp)!.name} ›
+            </button>
+          )}
         </div>
 
-        <div key={dayKey + sport + activeComp + state.status} class="fade-in">
+        <div key={dayKey + sport + activeComp + state.status} class={`fade-in${slide ? ` slide-${slide}` : ''}`}>
           {state.status === 'loading' && <Skeletons />}
           {state.status === 'error' && <Empty error title="Impossible de charger les scores" text="Vérifie ta connexion, puis réessaie." action="Réessayer" onAction={retry} />}
           {emptyDay && nextMatch && (

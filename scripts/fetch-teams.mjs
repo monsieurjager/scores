@@ -27,5 +27,11 @@ for (const [sport, path, national] of SOURCES) {
   console.log(`✓ ${path}`);
 }
 const list = [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+
+// Clubs français de rugby = clubs du Top 14 : sert à ne garder que leurs matchs en coupes d'Europe.
+const top14 = await (await fetch(`${BASE}/rugby/270559/teams`)).json();
+const frenchClubs = (top14.sports?.[0]?.leagues?.[0]?.teams ?? []).map(({ team }) => String(team.id));
+writeFileSync(new URL('../src/data/frenchRugbyClubs.json', import.meta.url), JSON.stringify(frenchClubs) + '\n');
+console.log(`${frenchClubs.length} clubs du Top 14 écrits.`);
 writeFileSync(new URL('../src/data/teams.json', import.meta.url), JSON.stringify(list, null, 0) + '\n');
 console.log(`${list.length} équipes écrites.`);

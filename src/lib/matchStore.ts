@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { Match } from '../types';
+import type { Match, SportId, Team } from '../types';
 
 /**
  * Dernière version connue de chaque match, partagée entre les écrans.
@@ -30,21 +30,39 @@ export function useMatch(id: string | null): Match | undefined {
   return id ? matches.get(id) : undefined;
 }
 
-// Match actuellement ouvert (feuille de détail)
-let openId: string | null = null;
-const openSubs = new Set<() => void>();
-export const openMatch = (id: string | null) => {
-  openId = id;
-  openSubs.forEach((f) => f());
+// Feuilles ouvertes, en pile : détail d'un match → page d'une équipe → retour au match, etc.
+export type Sheet =
+  | { type: 'match'; id: string }
+  | { type: 'team'; sport: SportId; team: Team; national: boolean }
+  | { type: 'comp'; id: string };
+
+let stack: Sheet[] = [];
+const sheetSubs = new Set<() => void>();
+const emit = () => sheetSubs.forEach((f) => f());
+
+export const pushSheet = (s: Sheet) => {
+  stack = [...stack, s];
+  emit();
 };
-export function useOpenMatchId(): string | null {
+export const popSheet = () => {
+  stack = stack.slice(0, -1);
+  emit();
+};
+export const closeSheets = () => {
+  stack = [];
+  emit();
+};
+/** Compatibilité : ouvrir le détail d'un match. */
+export const openMatch = (id: string | null) => (id ? pushSheet({ type: 'match', id }) : popSheet());
+
+export function useSheets(): Sheet[] {
   const [, bump] = useState(0);
   useEffect(() => {
     const f = () => bump((n) => n + 1);
-    openSubs.add(f);
+    sheetSubs.add(f);
     return () => {
-      openSubs.delete(f);
+      sheetSubs.delete(f);
     };
   }, []);
-  return openId;
+  return stack;
 }

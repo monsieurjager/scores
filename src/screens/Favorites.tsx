@@ -4,6 +4,8 @@ import { useFavorites, isFavMatch, toFav, type Fav } from '../lib/favorites';
 import { useTeams } from '../hooks/useTeams';
 import { useUpcoming } from '../hooks/useUpcoming';
 import { CompactCard, Empty, Section } from '../components/ui';
+import { pushSheet } from '../lib/matchStore';
+import { isNationalTeam } from '../lib/teams';
 import { IconPlus, IconSearch, IconStar } from '../components/icons';
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -98,11 +100,13 @@ export function Favorites() {
           <Section title="Mes équipes">
             {favs.map((f: Fav) => (
               <li class="card team-row" key={f.key}>
-                <TeamLogo logo={f.logo} name={f.name} />
-                <div class="team-row-text">
-                  <span class="team-name">{f.name}</span>
-                  <span class="muted small">{sportLabel(f)}</span>
-                </div>
+                <button class="team-row-open" onClick={() => pushSheet({ type: 'team', sport: f.sport, team: { id: f.id, name: f.name, short: f.name.slice(0, 3).toUpperCase(), logo: f.logo, color: f.color }, national: isNationalTeam(f.sport, f.id) })} aria-label={`Fiche de ${f.name}`}>
+                  <TeamLogo logo={f.logo} name={f.name} />
+                  <span class="team-row-text">
+                    <span class="team-name">{f.name}</span>
+                    <span class="muted small">{sportLabel(f)}</span>
+                  </span>
+                </button>
                 <StarButton on label={`Retirer ${f.name} des favoris`} onClick={() => toggle(f)} />
               </li>
             ))}

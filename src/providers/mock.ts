@@ -121,4 +121,10 @@ export const mockProvider: MatchProvider = {
   async getSummary() {
     return null;
   },
+  async getTeamMatches() {
+    return [];
+  },
+  async getCompetition() {
+    return { tables: [], matchday: [] };
+  },
 };

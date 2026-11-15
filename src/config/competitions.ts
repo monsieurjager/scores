@@ -1,4 +1,5 @@
 import type { Competition } from '../types';
+import frenchRugbyClubs from '../data/frenchRugbyClubs.json';
 
 /** Sélections nationales de foot suivies (abréviations ESPN). La France est traitée à part (« Les Bleus »). */
 export const BIG_NATIONS = ['FRA', 'ESP', 'ENG', 'GER', 'ITA', 'POR', 'NED', 'BEL', 'CRO', 'BRA', 'ARG', 'URU'];
@@ -31,8 +32,9 @@ export const COMPETITIONS: Competition[] = [
   { id: 'rwc', sport: 'rugby', name: 'Coupe du monde de rugby', espn: { sport: 'rugby', league: '164205' }, onlyTeams: ['FRA'] },
   // Rugby : clubs
   { id: 'top14', sport: 'rugby', name: 'Top 14', espn: { sport: 'rugby', league: '270559' } },
-  { id: 'rcc', sport: 'rugby', name: 'Champions Cup', espn: { sport: 'rugby', league: '271937' } },
-  { id: 'rchc', sport: 'rugby', name: 'Challenge Cup', espn: { sport: 'rugby', league: '272073' } },
+  // Coupes d'Europe : uniquement les matchs des clubs français (clubs du Top 14)
+  { id: 'rcc', sport: 'rugby', name: 'Champions Cup', espn: { sport: 'rugby', league: '271937' }, onlyTeamIds: frenchRugbyClubs },
+  { id: 'rchc', sport: 'rugby', name: 'Challenge Cup', espn: { sport: 'rugby', league: '272073' }, onlyTeamIds: frenchRugbyClubs },
 ];
 
 export const SPORTS = [
