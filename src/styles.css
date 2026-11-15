@@ -340,6 +340,27 @@ button.detail-team:active { transform: scale(.96); }
 @keyframes slide-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
 @keyframes slide-prev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
 
+/* ===== En-tête de l'écran Scores : titre + calendrier, bande des jours collante ===== */
+.screen-top { padding-top: calc(env(safe-area-inset-top) + 14px); }
+.status-shade { position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); z-index: 25; pointer-events: none; opacity: 0; background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: blur(28px) saturate(170%); backdrop-filter: blur(28px) saturate(170%); transition: opacity .25s; }
+.status-shade.visible { opacity: 1; }
+.title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.title-row .large-title { margin: 0; padding-bottom: 12px; min-width: 0; }
+.title-row .large-title h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title-row .icon-btn { margin-bottom: 16px; flex: none; }
+.daystrip-bar { position: sticky; top: env(safe-area-inset-top); z-index: 20; margin: 2px -16px 10px; padding: 8px 0; transition: background .25s, box-shadow .25s; }
+.daystrip-bar.stuck { background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: blur(28px) saturate(170%); backdrop-filter: blur(28px) saturate(170%); box-shadow: 0 1px 0 var(--edge); }
+.daystrip { display: flex; gap: 6px; overflow-x: auto; padding: 0 16px; scrollbar-width: none; touch-action: pan-x pan-y; }
+.daystrip::-webkit-scrollbar { display: none; }
+.day { flex: none; width: 48px; height: 58px; border-radius: 16px; display: grid; place-content: center; gap: 1px; text-align: center; background: var(--glass); border: 1px solid var(--edge); transition: background .2s, color .2s, transform .15s; }
+.day small { font-size: 11px; font-weight: 700; color: var(--sub); letter-spacing: .04em; }
+.day b { font-size: 19px; font-weight: 700; line-height: 1.15; }
+.day.today { border-color: color-mix(in srgb, var(--fg) 45%, transparent); }
+.day.today small { color: var(--fg); }
+.day[aria-pressed='true'] { background: var(--pill-on); color: var(--pill-on-fg); border-color: transparent; }
+.day[aria-pressed='true'] small { color: inherit; opacity: .75; }
+.day:active { transform: scale(.94); }
+
 /* Appareils anciens : verre allégé */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass, .tabbar, .navbar.scrolled { background: var(--bg); }

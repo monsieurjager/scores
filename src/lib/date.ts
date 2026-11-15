@@ -42,3 +42,19 @@ export function formatShortDate(iso: string): string {
   const d = new Date(iso);
   return d.getFullYear() === new Date().getFullYear() ? shortFmt.format(d) : shortYearFmt.format(d);
 }
+
+const shortTitleFmt = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
+/** Titre court d'un jour : « Aujourd'hui », « Hier », « Demain », sinon « Mer. 18 nov. ». */
+export function dayTitle(key: string): string {
+  if (isRelativeDay(key)) return dayLabel(key);
+  const [y, m, d] = key.split('-').map(Number);
+  const s = shortTitleFmt.format(new Date(Date.UTC(y, m - 1, d)));
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const weekdayFmt = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'short' });
+/** « LUN », « MAR »… pour la bande des jours. */
+export function weekdayShort(key: string): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return weekdayFmt.format(new Date(Date.UTC(y, m - 1, d))).replace('.', '').toUpperCase();
+}

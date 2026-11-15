@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Match } from '../types';
 import { COMPETITIONS, SPORTS, isNational } from '../config/competitions';
-import { addDays, dayKeyOf, dayLabel, dayLong, isRelativeDay, todayKey } from '../lib/date';
+import { addDays, dayKeyOf, dayLong, dayTitle, todayKey } from '../lib/date';
+import { DayStrip } from '../components/DayStrip';
 import { useMatches } from '../hooks/useMatches';
 import { useUpcoming } from '../hooks/useUpcoming';
 import { useStored } from '../hooks/useStored';
@@ -12,7 +13,7 @@ import { useOnline } from '../hooks/useOnline';
 import { Chips, CompactCard, Empty, LiveCard, Section, Segmented, Skeletons } from '../components/ui';
 import { pushSheet } from '../lib/matchStore';
 import { useGestures } from '../hooks/useGestures';
-import { IconCalendar, IconChevron } from '../components/icons';
+import { IconCalendar } from '../components/icons';
 
 
 /** `?day=2026-11-07` ouvre directement ce jour (pratique pour tester). */
@@ -37,7 +38,7 @@ export function Today() {
   const dateInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 48);
+    const onScroll = () => setScrolled(window.scrollY > 110);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -60,7 +61,8 @@ export function Today() {
   const activeComp = effectiveComp(sport, comp, compOptions.map((o) => o.id));
   const filter = (m: Match) => matchesFilter(m, sport, activeComp);
   const visible: Match[] = useMemo(() => (state.status === 'ready' ? state.matches.filter(filter) : []), [state, sport, activeComp]);
-  const upcomingNext = (upcomingAll ?? []).filter(filter);
+  // « À venir » : après le jour affiché (aujourd'hui : les matchs du jour sont déjà dans la liste)
+  const upcomingNext = (upcomingAll ?? []).filter((m) => filter(m) && (isToday || dayKeyOf(m.kickoff) > dayKey));
   const isFrance = isFranceMatch;
   // Jour sans match : on montre le prochain match (après le jour affiché), plutôt qu'un écran vide.
   const emptyDay = state.status === 'ready' && visible.length === 0;
@@ -83,53 +85,41 @@ export function Today() {
     setSlide(n > 0 ? 'next' : 'prev');
     setDayKey(addDays(dayKey, n));
   };
+  const pick = (d: string) => {
+    if (d === dayKey) return;
+    setSlide(d > dayKey ? 'next' : 'prev');
+    setDayKey(d);
+  };
   // Balayer à gauche / à droite : jour suivant / précédent. Tirer vers le bas en haut de page : rafraîchir.
   const { pull, refreshing, handlers } = useGestures({ onSwipe: (dir) => go(dir === 'left' ? 1 : -1), onRefresh: refresh });
 
   return (
     <>
-      <header class={`navbar${scrolled ? ' scrolled' : ''}`}>
-        <div class="navbar-inner">
-          <div class={`nav-title${scrolled ? ' visible' : ''}`}>{dayLabel(dayKey)}</div>
-          <div class="nav-actions">
-            {!isToday && (
-              <button class="glass pill-btn" onClick={() => setDayKey(todayKey())}>
-                Aujourd'hui
-              </button>
-            )}
-            <div class="glass group">
-              <button class="icon-btn" aria-label="Jour précédent" onClick={() => go(-1)}>
-                <IconChevron dir="left" />
-              </button>
-              <button class="icon-btn" aria-label="Jour suivant" onClick={() => go(1)}>
-                <IconChevron dir="right" />
-              </button>
-            </div>
-            <label class="glass icon-btn round" aria-label="Choisir une date">
-              <IconCalendar />
-              <input
-                ref={dateInput}
-                type="date"
-                value={dayKey}
-                onChange={(e) => {
-                  const v = (e.target as HTMLInputElement).value;
-                  if (v) setDayKey(dayKeyOf(`${v}T12:00:00Z`));
-                }}
-              />
-            </label>
-          </div>
-        </div>
-      </header>
-
-      <main class="screen" {...handlers}>
+      <div class={`status-shade${scrolled ? ' visible' : ''}`} aria-hidden="true" />
+      <main class="screen screen-top" {...handlers}>
         <div class={`ptr${refreshing ? ' busy' : ''}`} style={{ height: `${refreshing ? 48 : pull}px`, opacity: refreshing ? 1 : Math.min(pull / 60, 1) }} aria-hidden={!refreshing}>
           <span class="ptr-spin" style={{ transform: `rotate(${pull * 4}deg)` }} />
         </div>
-        <div class="large-title">
-          {isRelativeDay(dayKey) && <p>{dayLong(dayKey).toUpperCase()}</p>}
-          <h1>{dayLabel(dayKey)}</h1>
-          {!online && <span class="offline-pill">Hors ligne · dernières données enregistrées</span>}
+        <div class="title-row">
+          <div class="large-title">
+            <p>{dayLong(dayKey).toUpperCase()}</p>
+            <h1>{dayTitle(dayKey)}</h1>
+          </div>
+          <label class="glass icon-btn round" aria-label="Choisir une date">
+            <IconCalendar />
+            <input
+              ref={dateInput}
+              type="date"
+              value={dayKey}
+              onChange={(e) => {
+                const v = (e.target as HTMLInputElement).value;
+                if (v) pick(dayKeyOf(`${v}T12:00:00Z`));
+              }}
+            />
+          </label>
         </div>
+        {!online && <span class="offline-pill">Hors ligne · dernières données enregistrées</span>}
+        <DayStrip value={dayKey} onChange={pick} stuck={scrolled} />
 
         <div class="filters">
           <Segmented<SportFilter> label="Sport" value={sport} onChange={(v) => { setSport(v); setComp('all'); }} options={[{ id: 'all', label: 'Tout' }, ...SPORTS.map((s) => ({ id: s.id as SportFilter, label: s.label }))]} />

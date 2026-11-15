@@ -15,7 +15,7 @@ export function useGestures({ onSwipe, onRefresh }: { onSwipe: (dir: 'left' | 'r
     onTouchStart: (e: TouchEvent) => {
       const t = e.touches[0];
       const target = e.target as HTMLElement;
-      start.current = { x: t.clientX, y: t.clientY, t: Date.now(), ignore: !!target.closest('.chips, .sheet, input, .segmented') };
+      start.current = { x: t.clientX, y: t.clientY, t: Date.now(), ignore: !!target.closest('.chips, .daystrip, .sheet, input, .segmented') };
     },
     onTouchMove: (e: TouchEvent) => {
       const s = start.current;
