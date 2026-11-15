@@ -3,7 +3,7 @@ import { COMPETITIONS } from '../config/competitions';
 import { useFavorites, isFavMatch, toFav, type Fav } from '../lib/favorites';
 import { useTeams } from '../hooks/useTeams';
 import { useUpcoming } from '../hooks/useUpcoming';
-import { CompactCard, Empty, Section } from '../components/ui';
+import { CompactCard, Empty, Section, sizedLogo } from '../components/ui';
 import { pushSheet } from '../lib/matchStore';
 import { isNationalTeam } from '../lib/teams';
 import { IconPlus, IconSearch, IconStar } from '../components/icons';
@@ -12,7 +12,7 @@ const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 const sportLabel = (f: { sport: string }) => (f.sport === 'rugby' ? 'Rugby' : 'Foot');
 
 function TeamLogo({ logo, name }: { logo?: string; name: string }) {
-  return logo ? <img class="crest" style={{ '--s': '34px' }} src={logo} width={34} height={34} alt="" loading="lazy" decoding="async" /> : <span class="crest crest-fallback" style={{ '--s': '34px' }}>{name.slice(0, 3).toUpperCase()}</span>;
+  return logo ? <img class="crest" style={{ '--s': '34px' }} src={sizedLogo(logo, 34)} width={34} height={34} alt="" loading="lazy" decoding="async" /> : <span class="crest crest-fallback" style={{ '--s': '34px' }}>{name.slice(0, 3).toUpperCase()}</span>;
 }
 
 function StarButton({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {

@@ -40,17 +40,27 @@ export function Chips<T extends string>({ value, options, onChange }: { value: T
   );
 }
 
+/** Logo ESPN redimensionné côté ESPN (≈ 7 Ko au lieu de 60 Ko), à 3× la taille affichée pour les écrans Retina. */
+export function sizedLogo(url: string, size: number): string {
+  const m = /^https:\/\/a\.espncdn\.com(\/i\/.+\.png)$/.exec(url);
+  if (!m) return url;
+  const px = size <= 24 ? 72 : size <= 40 ? 128 : 220;
+  return `https://a.espncdn.com/combiner/i?img=${m[1]}&w=${px}&h=${px}`;
+}
+
 export function Crest({ team, size }: { team: Team; size: number }) {
-  const [broken, setBroken] = useState(false);
+  // 0 : logo redimensionné · 1 : logo d'origine · 2 : initiales
+  const [attempt, setAttempt] = useState(0);
   const style = { '--s': `${size}px` };
-  if (!team.logo || broken) {
+  if (!team.logo || attempt >= 2) {
     return (
       <span class="crest crest-fallback" style={style}>
         {team.short.slice(0, 3)}
       </span>
     );
   }
-  return <img class="crest" style={style} src={team.logo} width={size} height={size} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />;
+  const src = attempt === 0 ? sizedLogo(team.logo, size) : team.logo;
+  return <img key={src} class="crest" style={style} src={src} width={size} height={size} alt="" loading="lazy" decoding="async" onError={() => setAttempt((n) => n + 1)} />;
 }
 
 const scoreOf = (m: Match) => (m.homeScore != null && m.awayScore != null ? ([m.homeScore, m.awayScore] as const) : null);

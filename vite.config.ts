@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import preact from '@preact/preset-vite';
 
@@ -8,6 +9,8 @@ const BUILD_ID = Date.now().toString(36);
 // base relatif : fonctionne sur GitHub Pages (/scores/) comme en local.
 export default defineConfig({
   base: './',
+  // Tests de l'app (le service d'alertes a les siens : alerts/test)
+  test: { include: ['src/**/*.test.ts'] },
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   plugins: [
     preact(),

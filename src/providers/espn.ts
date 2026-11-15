@@ -37,7 +37,7 @@ interface EspnDetail {
   ownGoal?: boolean;
   athletesInvolved?: { displayName?: string; shortName?: string; fullName?: string }[];
 }
-interface EspnEvent {
+export interface EspnEvent {
   id: string;
   date: string;
   status: { displayClock?: string; type: { name: string; state: 'pre' | 'in' | 'post' } };
@@ -78,7 +78,7 @@ const RUGBY_KINDS: Record<string, [EventKind, number]> = {
 };
 
 /** Buts / essais et cartons, dans l'ordre du match. ESPN crédite déjà l'équipe bénéficiaire (même pour un but contre son camp). */
-function toEvents(details: EspnDetail[] | undefined, sport: Competition['sport']): MatchEvent[] {
+export function toEvents(details: EspnDetail[] | undefined, sport: Competition['sport']): MatchEvent[] {
   const out: MatchEvent[] = [];
   (details ?? []).forEach((d, i) => {
     let kind: EventKind | null = null;
@@ -98,7 +98,7 @@ function toEvents(details: EspnDetail[] | undefined, sport: Competition['sport']
   return out.sort((x, y) => x.seconds - y.seconds);
 }
 
-function normalize(e: EspnEvent, comp: Competition): Match | null {
+export function normalize(e: EspnEvent, comp: Competition): Match | null {
   const c = e.competitions?.[0];
   const home = c?.competitors.find((x) => x.homeAway === 'home');
   const away = c?.competitors.find((x) => x.homeAway === 'away');

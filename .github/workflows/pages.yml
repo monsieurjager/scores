@@ -24,6 +24,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Tests automatiques : en cas d'échec, rien n'est mis en ligne.
+      - run: npm test
       # Adresse du service d'alertes (si Cloudflare est configuré) : https://scores-alerts.<sous-domaine>.workers.dev
       - name: Adresse du service d'alertes
         env:

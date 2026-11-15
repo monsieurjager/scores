@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Match } from '../types';
-import { COMPETITIONS, FRANCE, SPORTS, isNational } from '../config/competitions';
+import { COMPETITIONS, SPORTS, isNational } from '../config/competitions';
 import { addDays, dayKeyOf, dayLabel, dayLong, isRelativeDay, todayKey } from '../lib/date';
 import { useMatches } from '../hooks/useMatches';
 import { useUpcoming } from '../hooks/useUpcoming';
 import { useStored } from '../hooks/useStored';
 import { isFavMatch, useFavorites } from '../lib/favorites';
+import { effectiveComp, isFranceMatch, isOtherNation, matchesFilter, type SportFilter } from '../lib/filters';
 import { enabledCompetitions, useSettings } from '../lib/settings';
 import { useOnline } from '../hooks/useOnline';
 import { Chips, CompactCard, Empty, LiveCard, Section, Segmented, Skeletons } from '../components/ui';
@@ -13,7 +14,6 @@ import { pushSheet } from '../lib/matchStore';
 import { useGestures } from '../hooks/useGestures';
 import { IconCalendar, IconChevron } from '../components/icons';
 
-type SportFilter = 'all' | 'football' | 'rugby';
 
 /** `?day=2026-11-07` ouvre directement ce jour (pratique pour tester). */
 let dayParamUsed = false;
@@ -57,28 +57,11 @@ export function Today() {
   const isToday = dayKey === todayKey();
   const showChips = sport !== 'all';
   // La compétition choisie ne s'applique que si les pastilles sont visibles (filtre Foot ou Rugby).
-  const activeComp = showChips && compOptions.some((o) => o.id === comp) ? comp : 'all';
-
-  const involvesFrance = (m: Match) => m.home.short === FRANCE || m.away.short === FRANCE;
-  const compOf = (m: Match) => COMPETITIONS.find((x) => x.id === m.competitionId);
-  const matchesFilter = (m: Match) => {
-    const c = compOf(m);
-    if (!c) return false;
-    if (sport !== 'all' && c.sport !== sport) return false;
-    if (activeComp === 'bleus') return isNational(c) && involvesFrance(m);
-    if (activeComp === 'selections') return isNational(c);
-    return activeComp === 'all' || c.id === activeComp;
-  };
-  const visible: Match[] = useMemo(() => (state.status === 'ready' ? state.matches.filter(matchesFilter) : []), [state, sport, activeComp]);
-  const upcomingNext = (upcomingAll ?? []).filter(matchesFilter);
-  const isFrance = (m: Match) => {
-    const c = compOf(m);
-    return !!c && isNational(c) && involvesFrance(m);
-  };
-  const isOtherNation = (m: Match) => {
-    const c = compOf(m);
-    return !!c && isNational(c) && !involvesFrance(m);
-  };
+  const activeComp = effectiveComp(sport, comp, compOptions.map((o) => o.id));
+  const filter = (m: Match) => matchesFilter(m, sport, activeComp);
+  const visible: Match[] = useMemo(() => (state.status === 'ready' ? state.matches.filter(filter) : []), [state, sport, activeComp]);
+  const upcomingNext = (upcomingAll ?? []).filter(filter);
+  const isFrance = isFranceMatch;
   // Jour sans match : on montre le prochain match (après le jour affiché), plutôt qu'un écran vide.
   const emptyDay = state.status === 'ready' && visible.length === 0;
   const nextMatch = emptyDay ? upcomingNext.find((m) => dayKeyOf(m.kickoff) > dayKey) : undefined;

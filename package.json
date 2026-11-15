@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "test": "vitest run"
   },
   "dependencies": {
     "preact": "^11.2.0"
@@ -14,6 +15,7 @@
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",
     "typescript": "^7.0.2",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "vitest": "^3.2.4"
   }
 }

@@ -151,8 +151,9 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
   const comp = m ? competitionById(m.competitionId) : undefined;
   const ids = useMemo(() => (m ? [m.home.id, m.away.id] : []), [m?.home.id, m?.away.id]);
   const standings = useStandings(comp, ids);
-  const live0 = m?.status === 'live';
-  const summary = useSummary(comp, id, !!live0);
+  // Rafraîchi en direct, et dans les 90 min avant le coup d'envoi (les compositions tombent ~1 h avant).
+  const soon = m?.status === 'scheduled' && new Date(m.kickoff).getTime() - Date.now() < 90 * 60_000 && new Date(m.kickoff).getTime() > Date.now() - 30 * 60_000;
+  const summary = useSummary(comp, id, m?.status === 'live' || !!soon);
 
   if (!m || !comp) return null;
   const live = m.status === 'live';
@@ -260,6 +261,9 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
         </Section>
       )}
 
+      {!summary?.lineups && m.status === 'scheduled' && summary !== undefined && (
+        <p class="note">Les compositions apparaîtront ici dès leur publication, en général une heure avant le coup d'envoi.</p>
+      )}
       {summary?.lineups && (
         <Section title="Compositions">
           <li style={{ listStyle: 'none' }}>
