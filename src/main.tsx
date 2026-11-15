@@ -11,7 +11,7 @@ import { CompetitionSheet } from './components/CompetitionSheet';
 import { Settings } from './screens/Settings';
 import { applyTheme } from './lib/settings';
 import { registerServiceWorker, startUpdateChecks } from './lib/update';
-import { syncAlerts } from './lib/alerts';
+import { isNative, syncAlerts } from './lib/alerts';
 import { pushSheet } from './lib/matchStore';
 
 type Tab = 'today' | 'favoris' | 'reglages';
@@ -67,6 +67,8 @@ applyTheme();
 registerServiceWorker();
 // Alertes : resynchroniser les équipes suivies quand les favoris changent
 window.addEventListener('favorites-changed', () => syncAlerts());
+// App iPhone : renvoie équipes et préférences à chaque ouverture (jetons Apple éventuellement renouvelés)
+if (isNative()) syncAlerts();
 // Ouverture depuis une notification : détail du match (?match=… au lancement, ou message du service worker)
 const fromNotif = new URLSearchParams(location.search).get('match');
 if (fromNotif) {

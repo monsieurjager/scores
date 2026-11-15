@@ -56,7 +56,24 @@ console.log('✓ Tables prêtes');
 
 // 4. Configuration + déploiement
 writeFileSync(new URL('../wrangler.toml', import.meta.url), readFileSync(new URL('../wrangler.template.toml', import.meta.url), 'utf8').replace('__D1_ID__', dbId));
-execFileSync('npx', ['wrangler', 'deploy'], { stdio: 'inherit', cwd: new URL('..', import.meta.url).pathname });
+const cwd = new URL('..', import.meta.url).pathname;
+execFileSync('npx', ['wrangler', 'deploy'], { stdio: 'inherit', cwd });
+
+// 5. Clé Apple (app iPhone) : copiée des secrets GitHub vers les secrets Cloudflare, jamais affichée.
+const APNS = ['APNS_KEY', 'APNS_KEY_ID', 'APNS_TEAM_ID', 'APNS_BUNDLE_ID'];
+const present = APNS.filter((k) => process.env[k]?.trim());
+if (present.length === APNS.length) {
+  const secrets = Object.fromEntries(APNS.map((k) => [k, process.env[k].trim()]));
+  if (!/BEGIN PRIVATE KEY/.test(secrets.APNS_KEY)) {
+    console.error("✗ APNS_KEY ne ressemble pas au contenu d'un fichier .p8 (lignes BEGIN/END PRIVATE KEY comprises)");
+    process.exit(1);
+  }
+  execFileSync('npx', ['wrangler', 'secret', 'bulk'], { input: JSON.stringify(secrets), stdio: ['pipe', 'ignore', 'inherit'], cwd });
+  console.log('✓ Clé Apple installée (notifications de l’app iPhone et Activités en direct)');
+} else if (present.length) {
+  console.error(`✗ Secrets Apple incomplets : il manque ${APNS.filter((k) => !present.includes(k)).join(', ')}`);
+  process.exit(1);
+} else console.log('· Pas de clé Apple : app iPhone pas encore configurée (les alertes web fonctionnent)');
 
 const url = `https://scores-alerts.${subdomain}.workers.dev`;
 console.log('✓ Service déployé');

@@ -5,7 +5,7 @@ import { BUILD_DATE, checkForUpdate, clearOfflineCache } from '../lib/update';
 import { useOnline } from '../hooks/useOnline';
 import { useFavorites } from '../lib/favorites';
 import { Section, Segmented } from '../components/ui';
-import { alertsAvailable, disableAlerts, enableAlerts, isStandalone, pushSupported, sendTestAlert, syncAlerts } from '../lib/alerts';
+import { alertsAvailable, disableAlerts, enableAlerts, isNative, isStandalone, pushSupported, sendTestAlert, syncAlerts } from '../lib/alerts';
 import type { AlertSettings } from '../lib/settings';
 
 function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (v: boolean) => void }) {
@@ -38,8 +38,9 @@ function Alerts() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const a = st.alerts;
-  const canPush = pushSupported() && isStandalone();
-  const denied = typeof Notification !== 'undefined' && Notification.permission === 'denied';
+  const native = isNative();
+  const canPush = native || (pushSupported() && isStandalone());
+  const denied = !native && typeof Notification !== 'undefined' && Notification.permission === 'denied';
 
   const toggle = async (on: boolean) => {
     setBusy(true);
@@ -70,6 +71,12 @@ function Alerts() {
             <span>Alertes de mes équipes favorites</span>
             <Switch on={a.enabled} label="Alertes" onChange={(on) => !busy && toggle(on)} />
           </li>
+          {a.enabled && native && (
+            <li class="card setting-row sub">
+              <span>Activité en direct (écran verrouillé)</span>
+              <Switch on={a.live} label="Activité en direct" onChange={(on) => setPref('live', on)} />
+            </li>
+          )}
           {a.enabled &&
             ALERT_PREFS.map((p) => (
               <li class="card setting-row sub" key={p.key}>

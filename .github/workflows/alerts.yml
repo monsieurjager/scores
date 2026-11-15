@@ -37,6 +37,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          APNS_KEY: ${{ secrets.APNS_KEY }}
+          APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
+          APNS_TEAM_ID: ${{ secrets.APNS_TEAM_ID }}
+          APNS_BUNDLE_ID: ${{ secrets.APNS_BUNDLE_ID }}
         run: npm run deploy
       - name: Vérifier que le service répond et joint ESPN
         env:
@@ -49,10 +53,6 @@ jobs:
             sleep 10
           done
           echo "Le service ne répond pas correctement" && exit 1
-      - name: Diagnostic notifications Apple
-        env:
-          URL: ${{ steps.deploy.outputs.url }}
-        run: curl -s -m 30 "$URL/diag/apns" | jq . || true
       - name: Republier l'app (adresse du service)
         env:
           GH_TOKEN: ${{ github.token }}

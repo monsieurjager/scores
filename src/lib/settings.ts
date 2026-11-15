@@ -20,9 +20,11 @@ export interface AlertSettings {
   fulltime: boolean;
   red: boolean;
   lineups: boolean;
+  /** App iPhone : Activité en direct sur l'écran verrouillé et la Dynamic Island */
+  live: boolean;
 }
 
-const DEFAULTS: Settings = { theme: 'auto', refreshSec: 5, hiddenComps: [], alerts: { enabled: false, goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true } };
+const DEFAULTS: Settings = { theme: 'auto', refreshSec: 5, hiddenComps: [], alerts: { enabled: false, goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true, live: true } };
 const KEY = 'settings.v1';
 
 const read = (): Settings => {

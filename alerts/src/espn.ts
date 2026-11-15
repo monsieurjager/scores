@@ -5,7 +5,7 @@ import type { MatchSnap, ScoringEvent } from './detect.ts';
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
-interface EspnTeam { id: string; displayName: string; shortDisplayName?: string; abbreviation?: string }
+interface EspnTeam { id: string; displayName: string; shortDisplayName?: string; abbreviation?: string; color?: string }
 interface EspnEvent {
   id: string;
   date: string;
@@ -51,8 +51,8 @@ function parse(e: EspnEvent, comp: Competition): Parsed | null {
       state,
       statusName: e.status.type.name,
       clock: e.status.displayClock?.replace("'+", '+') ?? '',
-      home: { id: String(h.team.id), name: nm(h.team) },
-      away: { id: String(a.team.id), name: nm(a.team) },
+      home: { id: String(h.team.id), name: nm(h.team), short: h.team.abbreviation ?? '', color: h.team.color ?? '' },
+      away: { id: String(a.team.id), name: nm(a.team), short: a.team.abbreviation ?? '', color: a.team.color ?? '' },
       hs: state === 'pre' ? 0 : Number(h.score ?? 0),
       as: state === 'pre' ? 0 : Number(a.score ?? 0),
       scoring,

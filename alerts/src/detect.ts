@@ -17,8 +17,8 @@ export interface MatchSnap {
   state: 'pre' | 'in' | 'post';
   statusName: string;
   clock: string;
-  home: { id: string; name: string };
-  away: { id: string; name: string };
+  home: { id: string; name: string; short?: string; color?: string };
+  away: { id: string; name: string; short?: string; color?: string };
   hs: number;
   as: number;
   scoring: ScoringEvent[];
