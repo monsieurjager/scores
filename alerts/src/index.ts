@@ -214,6 +214,20 @@ async function handle(req: Request, env: Env): Promise<Response> {
     return json({ ok: espn === 200, espn, subs: subs?.n ?? 0 }, h, espn === 200 ? 200 : 503);
   }
 
+  // Diagnostic temporaire : Cloudflare peut-il joindre le service de notifications d'Apple (HTTP/2) ?
+  if (req.method === 'GET' && pathname === '/diag/apns') {
+    const out: Record<string, unknown> = {};
+    for (const host of ['api.sandbox.push.apple.com', 'api.push.apple.com']) {
+      try {
+        const r = await fetch(`https://${host}/3/device/0000`, { method: 'POST', headers: { 'apns-topic': 'test', 'apns-push-type': 'alert' }, body: '{}' });
+        out[host] = { status: r.status, body: (await r.text()).slice(0, 200) };
+      } catch (e) {
+        out[host] = { error: String(e) };
+      }
+    }
+    return json(out, h);
+  }
+
   if (req.method === 'GET' && pathname === '/status') {
     // État du service : dernier passage (doit dater de moins d'une minute), matchs suivis, erreurs éventuelles.
     const st = await kvGet<{ at: number; error?: string } & TickInfo>(env, 'status');

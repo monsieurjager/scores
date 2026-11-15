@@ -49,6 +49,10 @@ jobs:
             sleep 10
           done
           echo "Le service ne répond pas correctement" && exit 1
+      - name: Diagnostic notifications Apple
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: curl -s -m 30 "$URL/diag/apns" | jq . || true
       - name: Republier l'app (adresse du service)
         env:
           GH_TOKEN: ${{ github.token }}
