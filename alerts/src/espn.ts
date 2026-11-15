@@ -75,3 +75,13 @@ export async function fetchDays(comp: Competition, days: string[]): Promise<Pars
   }
   return out;
 }
+
+/** Un seul match (réponse ~8× plus légère que le tableau du jour) : pour la surveillance rapprochée des matchs en cours. */
+export async function fetchEvent(comp: Competition, eventId: string): Promise<Parsed | null> {
+  const res = await fetch(`${BASE}/${comp.espn.sport}/${comp.espn.league}/scoreboard/${eventId}`, { cf: { cacheTtl: 0 } } as RequestInit);
+  if (!res.ok) return null;
+  return parse((await res.json()) as EspnEvent, comp);
+}
+
+/** Empreinte de ce qui peut déclencher une alerte ou changer une Activité en direct. */
+export const signature = (m: MatchSnap) => [m.state, m.statusName, m.hs, m.as, m.reds.length, m.scoring.length, m.clock].join('|');

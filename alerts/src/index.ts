@@ -8,7 +8,7 @@
 import { COMPETITIONS } from '../../src/config/competitions.ts';
 import type { Competition } from '../../src/types';
 import { detect, lineupsAlert, type Alert, type Stored, type TeamSheet } from './detect.ts';
-import { fetchDays, type Parsed } from './espn.ts';
+import { fetchDays, fetchEvent, signature, type Parsed } from './espn.ts';
 import { frenchName } from '../../src/config/teamNames.ts';
 import { generateVapid, sendPush, type Vapid } from './webpush.ts';
 import { deadToken, sendApns, type ApnsConfig } from './apns.ts';
@@ -85,6 +85,9 @@ async function buildPlan(env: Env, fav: Set<string>, day: string): Promise<Plan>
   return plan;
 }
 
+/** Matchs suivis en cours, surveillés toutes les 10 s entre deux passages complets. */
+interface Watch { comp: string; id: string; sig: string }
+
 interface TickInfo {
   subs: number;
   natives?: number;
@@ -114,6 +117,7 @@ async function tick(env: Env): Promise<TickInfo> {
   const alerts: Alert[] = [];
   let planChanged = false;
   let live = 0;
+  const watch: Watch[] = [];
   for (const [compId, planned] of active) {
     const comp = COMPETITIONS.find((c) => c.id === compId);
     if (!comp) continue;
@@ -128,6 +132,7 @@ async function tick(env: Env): Promise<TickInfo> {
         await env.DB.prepare('INSERT INTO matches (id, state, updated) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET state = excluded.state, updated = excluded.updated').bind(snap.id, JSON.stringify(next), now).run();
       }
       alerts.push(...found);
+      if (snap.state !== 'post' && now >= pm.kickoff - 3 * 60_000) watch.push({ comp: compId, id: snap.id, sig: signature(snap) });
       if (apns) live += await liveUpdate(env, apns, snap).catch(() => 0);
       if (snap.state === 'post') {
         pm.done = true;
@@ -152,7 +157,9 @@ async function tick(env: Env): Promise<TickInfo> {
   }
 
   if (planChanged) await kvSet(env, 'plan', plan);
+  await kvSet(env, 'watch', watch);
   if (apns) live += await liveStarts(env, apns, natives, plan, now).catch(() => 0);
+  if (alerts.length) await logAlerts(env, alerts, now);
   if (alerts.length) await deliver(env, subs, alerts);
   if (alerts.length && apns) await deliverNative(env, apns, natives, alerts);
   // Ménage : états de matchs de plus de 3 jours
@@ -169,11 +176,36 @@ async function safeTick(env: Env) {
   }
 }
 
-/** Déclenché chaque minute : deux passages à 30 s d'intervalle (alertes ~2× plus rapides, toujours en offre gratuite). */
+/**
+ * Déclenché chaque minute : un passage complet, puis jusqu'à la minute suivante, un coup d'œil toutes les 10 s
+ * aux seuls matchs suivis en cours (requête légère, sans base de données). Au moindre changement
+ * (but, carton, mi-temps, minute…), passage complet immédiat : détection, notifications, Activités en direct.
+ */
 async function everyMinute(env: Env) {
+  const t0 = Date.now();
   await safeTick(env);
-  await new Promise((r) => setTimeout(r, 30_000));
-  await safeTick(env);
+  let watch = (await kvGet<Watch[]>(env, 'watch').catch(() => null)) ?? [];
+  while (watch.length && Date.now() - t0 < 47_000) {
+    await new Promise((r) => setTimeout(r, 10_000));
+    const seen = await Promise.all(
+      watch.map(async (w) => {
+        const comp = COMPETITIONS.find((c) => c.id === w.comp);
+        const p = comp ? await fetchEvent(comp, w.id.slice(w.comp.length + 1)).catch(() => null) : null;
+        return p ? signature(p.snap) !== w.sig : false;
+      }),
+    );
+    if (seen.some(Boolean)) {
+      await safeTick(env);
+      watch = (await kvGet<Watch[]>(env, 'watch').catch(() => null)) ?? [];
+    }
+  }
+}
+
+/** Journal des dernières alertes (heure de détection, minute ESPN) : consultable sur /status pour mesurer les délais. */
+async function logAlerts(env: Env, alerts: Alert[], now: number) {
+  const log = (await kvGet<unknown[]>(env, 'recent')) ?? [];
+  for (const a of alerts) log.push({ at: new Date(now).toISOString(), kind: a.kind, title: a.title });
+  await kvSet(env, 'recent', log.slice(-15));
 }
 
 /** Compositions d'un match (détail ESPN), ou null si elles ne sont pas encore publiées. */
@@ -386,7 +418,7 @@ async function handle(req: Request, env: Env): Promise<Response> {
     // État du service : dernier passage (doit dater de moins d'une minute), matchs suivis, erreurs éventuelles.
     const st = await kvGet<{ at: number; error?: string } & TickInfo>(env, 'status');
     const age = st ? Math.round((Date.now() - st.at) / 1000) : null;
-    return json({ ok: !!st && age! < 300 && !st.error, lastTickSecondsAgo: age, ...(st ?? {}) }, h);
+    return json({ ok: !!st && age! < 300 && !st.error, lastTickSecondsAgo: age, ...(st ?? {}), recent: (await kvGet(env, 'recent')) ?? [] }, h);
   }
 
   if (req.method !== 'POST') return json({ error: 'not found' }, h, 404);
