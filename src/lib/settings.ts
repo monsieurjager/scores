@@ -9,15 +9,27 @@ export interface Settings {
   refreshSec: 5 | 10 | 30 | 60;
   /** Identifiants des compétitions masquées. */
   hiddenComps: string[];
+  alerts: AlertSettings;
 }
 
-const DEFAULTS: Settings = { theme: 'auto', refreshSec: 5, hiddenComps: [] };
+export interface AlertSettings {
+  enabled: boolean;
+  goals: boolean;
+  kickoff: boolean;
+  halftime: boolean;
+  fulltime: boolean;
+  red: boolean;
+}
+
+const DEFAULTS: Settings = { theme: 'auto', refreshSec: 5, hiddenComps: [], alerts: { enabled: false, goals: true, kickoff: true, halftime: true, fulltime: true, red: false } };
 const KEY = 'settings.v1';
 
 const read = (): Settings => {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) } : { ...DEFAULTS };
+    if (!raw) return { ...DEFAULTS };
+    const stored = JSON.parse(raw) as Partial<Settings>;
+    return { ...DEFAULTS, ...stored, alerts: { ...DEFAULTS.alerts, ...(stored.alerts ?? {}) } };
   } catch {
     return { ...DEFAULTS };
   }
@@ -45,7 +57,8 @@ export function updateSettings(patch: Partial<Settings>) {
   subs.forEach((f) => f());
 }
 
-export const resetSettings = () => updateSettings({ ...DEFAULTS });
+// Réinitialiser ne coupe pas les alertes (l'abonnement vit aussi côté service).
+export const resetSettings = () => updateSettings({ ...DEFAULTS, alerts: { ...DEFAULTS.alerts, enabled: state.alerts.enabled } });
 
 export function useSettings() {
   const [, bump] = useState(0);

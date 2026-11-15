@@ -77,3 +77,39 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(cacheFirst(req, IMG, 500));
   }
 });
+
+// ---------------------------------------------------------------- Alertes (Web Push)
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: 'Scores', body: event.data ? event.data.text() : '' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Scores', {
+      body: data.body || '',
+      tag: data.tag,
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+      data: { match: data.match },
+    }),
+  );
+});
+
+// Toucher la notification ouvre l'app sur le détail du match.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const match = event.notification.data && event.notification.data.match;
+  const url = new URL(match ? `./?match=${encodeURIComponent(match)}` : './', self.registration.scope).href;
+  event.waitUntil(
+    (async () => {
+      const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const w of wins) {
+        if (match) w.postMessage({ type: 'open-match', id: match });
+        if ('focus' in w) return w.focus();
+      }
+      return self.clients.openWindow(url);
+    })(),
+  );
+});

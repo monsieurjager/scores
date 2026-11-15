@@ -11,6 +11,8 @@ import { CompetitionSheet } from './components/CompetitionSheet';
 import { Settings } from './screens/Settings';
 import { applyTheme } from './lib/settings';
 import { registerServiceWorker, startUpdateChecks } from './lib/update';
+import { syncAlerts } from './lib/alerts';
+import { pushSheet } from './lib/matchStore';
 
 type Tab = 'today' | 'favoris' | 'reglages';
 const TABS: { id: Tab; label: string; icon: (p: { filled?: boolean }) => preact.JSX.Element }[] = [
@@ -63,5 +65,16 @@ function App() {
 
 applyTheme();
 registerServiceWorker();
+// Alertes : resynchroniser les équipes suivies quand les favoris changent
+window.addEventListener('favorites-changed', () => syncAlerts());
+// Ouverture depuis une notification : détail du match (?match=… au lancement, ou message du service worker)
+const fromNotif = new URLSearchParams(location.search).get('match');
+if (fromNotif) {
+  pushSheet({ type: 'match', id: fromNotif });
+  history.replaceState(null, '', location.pathname);
+}
+navigator.serviceWorker?.addEventListener('message', (e: MessageEvent) => {
+  if (e.data?.type === 'open-match' && typeof e.data.id === 'string') pushSheet({ type: 'match', id: e.data.id });
+});
 startUpdateChecks();
 render(<App />, document.getElementById('app')!);

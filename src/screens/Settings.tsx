@@ -5,6 +5,8 @@ import { BUILD_DATE, checkForUpdate, clearOfflineCache } from '../lib/update';
 import { useOnline } from '../hooks/useOnline';
 import { useFavorites } from '../lib/favorites';
 import { Section, Segmented } from '../components/ui';
+import { alertsAvailable, disableAlerts, enableAlerts, isStandalone, pushSupported, sendTestAlert, syncAlerts } from '../lib/alerts';
+import type { AlertSettings } from '../lib/settings';
 
 function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (v: boolean) => void }) {
   return (
@@ -21,6 +23,83 @@ const GROUPS: { title: string; match: (c: (typeof COMPETITIONS)[number]) => bool
   { title: 'Rugby · XV de France', match: (c) => c.sport === 'rugby' && isNational(c) },
 ];
 
+const ALERT_PREFS: { key: Exclude<keyof AlertSettings, 'enabled'>; label: string }[] = [
+  { key: 'goals', label: 'Buts et essais' },
+  { key: 'kickoff', label: "Coup d'envoi" },
+  { key: 'halftime', label: 'Mi-temps' },
+  { key: 'fulltime', label: 'Fin de match' },
+  { key: 'red', label: 'Cartons rouges' },
+];
+
+function Alerts() {
+  const st = useSettings();
+  const { favs } = useFavorites();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const a = st.alerts;
+  const canPush = pushSupported() && isStandalone();
+  const denied = typeof Notification !== 'undefined' && Notification.permission === 'denied';
+
+  const toggle = async (on: boolean) => {
+    setBusy(true);
+    setMsg('');
+    if (on) {
+      const r = await enableAlerts();
+      setMsg(r === 'ok' ? 'Alertes activées.' : r === 'denied' ? 'Notifications refusées : autorise-les dans Réglages iPhone → Notifications → Scores.' : r === 'unsupported' ? 'Ton appareil ne permet pas les alertes web.' : 'Activation impossible pour le moment. Réessaie plus tard.');
+    } else {
+      await disableAlerts();
+      setMsg('Alertes désactivées.');
+    }
+    setBusy(false);
+  };
+  const setPref = (key: Exclude<keyof AlertSettings, 'enabled'>, on: boolean) => {
+    updateSettings({ alerts: { ...a, [key]: on } });
+    syncAlerts();
+  };
+
+  return (
+    <Section title="Alertes">
+      {!canPush ? (
+        <li class="card setting-note">
+          Pour recevoir des alertes, installe l'app sur l'écran d'accueil (dans Safari : Partager → Sur l'écran d'accueil), puis ouvre-la depuis son icône et reviens ici. iOS 16.4 ou plus récent.
+        </li>
+      ) : (
+        <>
+          <li class="card setting-row">
+            <span>Alertes de mes équipes favorites</span>
+            <Switch on={a.enabled} label="Alertes" onChange={(on) => !busy && toggle(on)} />
+          </li>
+          {a.enabled &&
+            ALERT_PREFS.map((p) => (
+              <li class="card setting-row sub" key={p.key}>
+                <span>{p.label}</span>
+                <Switch on={a[p.key]} label={p.label} onChange={(on) => setPref(p.key, on)} />
+              </li>
+            ))}
+          {a.enabled && (
+            <li class="card setting-actions">
+              <button
+                class="link-btn"
+                onClick={async () => {
+                  setMsg('Envoi…');
+                  setMsg((await sendTestAlert()) ? 'Notification de test envoyée.' : "Échec de l'envoi : désactive puis réactive les alertes.");
+                }}
+              >
+                Envoyer une notification de test
+              </button>
+            </li>
+          )}
+        </>
+      )}
+      {(msg || (a.enabled && favs.length === 0) || denied) && (
+        <p class="hint" role="status">
+          {msg || (denied ? 'Notifications bloquées : Réglages iPhone → Notifications → Scores.' : 'Ajoute des équipes favorites : les alertes ne concernent que leurs matchs.')}
+        </p>
+      )}
+    </Section>
+  );
+}
+
 export function Settings() {
   const st = useSettings();
   const online = useOnline();
@@ -33,6 +112,8 @@ export function Settings() {
       <div class="large-title">
         <h1>Réglages</h1>
       </div>
+
+      {alertsAvailable() && <Alerts />}
 
       <Section title="Apparence">
         <li style={{ listStyle: 'none' }}>

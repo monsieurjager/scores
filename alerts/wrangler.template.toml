@@ -1,0 +1,17 @@
+# Généré par scripts/deploy.mjs (identifiant de la base D1 renseigné au déploiement)
+name = "scores-alerts"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+ORIGINS = "https://monsieurjager.github.io"
+SUBJECT = "https://monsieurjager.github.io/scores/"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "scores-alerts"
+database_id = "__D1_ID__"

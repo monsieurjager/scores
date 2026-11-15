@@ -24,6 +24,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Adresse du service d'alertes (si Cloudflare est configuré) : https://scores-alerts.<sous-domaine>.workers.dev
+      - name: Adresse du service d'alertes
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
+            sub=$(curl -s -H "Authorization: Bearer $CF_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/workers/subdomain" | jq -r '.result.subdomain // empty')
+            if [ -n "$sub" ]; then echo "VITE_ALERTS_URL=https://scores-alerts.$sub.workers.dev" >> "$GITHUB_ENV"; echo "Alertes : https://scores-alerts.$sub.workers.dev"; fi
+          fi
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

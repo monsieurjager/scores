@@ -1,0 +1,53 @@
+name: Service d'alertes
+
+# Déploie le service d'alertes (Cloudflare Worker) quand son code change, puis republie l'app
+# pour qu'elle connaisse l'adresse du service.
+on:
+  push:
+    branches: [main]
+    paths: ['alerts/**', 'src/config/**', 'src/data/**', '.github/workflows/alerts.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: alerts
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: alerts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: alerts/package-lock.json
+      - run: npm ci
+      - name: Tests
+        run: npm test
+      - name: Déployer sur Cloudflare
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy
+      - name: Vérifier que le service répond et joint ESPN
+        run: |
+          for i in $(seq 1 12); do
+            out=$(curl -s -m 15 "${{ steps.deploy.outputs.url }}/health" || true)
+            echo "$out"
+            echo "$out" | grep -q '"ok":true' && exit 0
+            sleep 10
+          done
+          echo "Le service ne répond pas correctement" && exit 1
+      - name: Republier l'app (adresse du service)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main

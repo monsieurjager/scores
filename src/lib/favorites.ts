@@ -36,7 +36,10 @@ const write = (next: Fav[]) => {
     /* stockage indisponible : on garde l'état en mémoire */
   }
   subs.forEach((f) => f());
+  window.dispatchEvent(new Event('favorites-changed'));
 };
+
+export const getFavorites = () => state;
 
 export function useFavorites() {
   const [, bump] = useState(0);
