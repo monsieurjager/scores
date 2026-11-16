@@ -72,6 +72,26 @@ export interface HeadToHead {
   awayScore: string;
 }
 
+export interface Leader {
+  id: string;
+  name: string;
+  team: Team;
+  value: number;
+  matches: number | null;
+}
+
+export interface Leaders {
+  goals: Leader[];
+  assists: Leader[];
+}
+
+export interface RosterPlayer {
+  id: string;
+  name: string;
+  number?: string;
+  role: 'gk' | 'def' | 'mid' | 'att';
+}
+
 export interface CompetitionView {
   tables: StandingsTable[];
   matchday: Match[];
@@ -101,6 +121,8 @@ export interface StandingRow {
   lost: number | null;
   diff: string;
   points: number | null;
+  /** Zone du classement (qualification européenne, relégation…) */
+  zone?: { color: string; label: string };
 }
 
 export interface StandingsTable {
@@ -155,6 +177,10 @@ export interface MatchProvider {
   getTeamMatches(sport: SportId, teamId: string, national: boolean, signal?: AbortSignal): Promise<Match[]>;
   /** Page d'une compétition : classements (groupes utiles) et journée en cours. */
   getCompetition(comp: Competition, signal?: AbortSignal): Promise<CompetitionView>;
+  /** Meilleurs buteurs et passeurs d'une compétition (foot), ou null. */
+  getLeaders(comp: Competition, signal?: AbortSignal): Promise<Leaders | null>;
+  /** Effectif d'une équipe dans une compétition, ou null. */
+  getRoster(comp: Competition, teamId: string, signal?: AbortSignal): Promise<RosterPlayer[] | null>;
   /** Équipes proposées dans le sélecteur de favoris. */
   getTeams(signal?: AbortSignal): Promise<TeamEntry[]>;
 }

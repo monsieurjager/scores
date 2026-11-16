@@ -1,4 +1,4 @@
-import type { Competition, CompetitionView, EventKind, FormResult, HeadToHead, Lineup, LineupPlayer, Match, MatchEvent, MatchProvider, MatchSummary, SummaryStat, MatchStatus, StandingRow, StandingsTable, Team, TeamEntry } from '../types';
+import type { Competition, CompetitionView, Leaders, Leader, RosterPlayer, EventKind, FormResult, HeadToHead, Lineup, LineupPlayer, Match, MatchEvent, MatchProvider, MatchSummary, SummaryStat, MatchStatus, StandingRow, StandingsTable, Team, TeamEntry } from '../types';
 import teamsData from '../data/teams.json';
 import { COMPETITIONS } from '../config/competitions';
 import { rate, roleOf, type PlayerStats } from '../lib/ratings';
@@ -344,6 +344,29 @@ export const espnProvider: MatchProvider = {
     return [...byId.values()].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   },
 
+  async getLeaders(comp, signal) {
+    if (comp.sport !== 'football' || comp.onlyTeams) return null;
+    const res = await fetch(`${BASE}/${comp.espn.sport}/${comp.espn.league}/statistics`, { signal });
+    if (!res.ok) return null;
+    type L = { value?: number; displayValue?: string; athlete?: { id: string; displayName?: string; shortName?: string; team?: EspnTeam } };
+    const j = (await res.json()) as { stats?: { name: string; leaders?: L[] }[] };
+    const list = (name: string): Leader[] =>
+      (j.stats?.find((x) => x.name === name)?.leaders ?? [])
+        .filter((l) => l.athlete?.team && l.value != null)
+        .map((l) => ({ id: l.athlete!.id, name: l.athlete!.displayName ?? l.athlete!.shortName ?? '—', team: toTeam(l.athlete!.team!, false), value: l.value!, matches: Number(/Matches: (\d+)/.exec(l.displayValue ?? '')?.[1] ?? NaN) || null }));
+    const out: Leaders = { goals: list('goalsLeaders'), assists: list('assistsLeaders') };
+    return out.goals.length || out.assists.length ? out : null;
+  },
+
+  async getRoster(comp, teamId, signal) {
+    const res = await fetch(`${BASE}/${comp.espn.sport}/${comp.espn.league}/teams/${teamId}/roster`, { signal });
+    if (!res.ok) return null;
+    type A = { id: string; displayName?: string; jersey?: string; position?: { abbreviation?: string } };
+    const j = (await res.json()) as { athletes?: A[] };
+    const list = (j.athletes ?? []).map((a): RosterPlayer => ({ id: a.id, name: a.displayName ?? '—', number: a.jersey || undefined, role: roleOf(a.position?.abbreviation) }));
+    return list.length ? list : null;
+  },
+
   async getCompetition(comp, signal) {
     const [groups, matchday] = await Promise.all([fetchStandingGroups(comp, signal).catch(() => null), fetchScoreboard(comp, '', signal).catch(() => [])]);
     // Groupes utiles : ceux où figure une équipe suivie (sélection ou club français), sinon tous.
@@ -353,13 +376,30 @@ export const espnProvider: MatchProvider = {
   },
 };
 
+/** Zones du classement : libellés en français, couleurs lisibles en mode sombre. */
+const ZONES: [RegExp, string, string][] = [
+  [/champions league qualifying|champions league qualification/i, 'Barrages Ligue des champions', '#7cb3ff'],
+  [/champions league|^champions$/i, 'Ligue des champions', '#3b82f6'],
+  [/europa league qualifying/i, 'Barrages Ligue Europa', '#fbbf5a'],
+  [/europa league/i, 'Ligue Europa', '#f59e0b'],
+  [/conference league/i, 'Ligue Conférence', '#22c55e'],
+  [/relegation playoff|relegation play-off/i, 'Barrage de relégation', '#fb8a5c'],
+  [/relegation/i, 'Relégation', '#ef4444'],
+  [/semi|quarter|knockout|playoff|play-off|round of 16|qualif|advance/i, 'Qualification', '#3b82f6'],
+];
+function zoneOf(desc?: string, color?: string): StandingRow['zone'] {
+  if (!desc) return undefined;
+  for (const [re, label, c] of ZONES) if (re.test(desc)) return { label, color: c };
+  return { label: desc, color: color || '#8e93a6' };
+}
+
 const standingsCache = new Map<string, { at: number; table: StandingsTable }>();
 
 /** Tous les groupes du classement d'une compétition (null : pas de classement). */
 async function fetchStandingGroups(comp: Competition, signal?: AbortSignal): Promise<StandingsTable[] | null> {
   const res = await fetch(`https://site.api.espn.com/apis/v2/sports/${comp.espn.sport}/${comp.espn.league}/standings`, { signal });
   if (!res.ok) return null;
-  type Entry = { team: EspnTeam; stats?: { name: string; value?: number | string; displayValue?: string }[] };
+  type Entry = { team: EspnTeam; note?: { color?: string; description?: string }; stats?: { name: string; value?: number | string; displayValue?: string }[] };
   const json = (await res.json()) as { children?: { name?: string; standings?: { entries?: Entry[] } }[] };
   const groups = (json.children ?? []).filter((g) => g.standings?.entries?.length);
   if (groups.length === 0) return null;
@@ -386,6 +426,7 @@ async function fetchStandingGroups(comp: Competition, signal?: AbortSignal): Pro
         lost: num(e, 'losses', 'gamesLost'),
         diff: txt(e, 'pointDifferential', 'pointsDifference', 'differential'),
         points: num(e, 'points'),
+        zone: zoneOf(e.note?.description, e.note?.color),
       }))
       .sort((a, b) => a.rank - b.rank);
     return { title: groups.length > 1 && groupName ? groupName : comp.name, rows };

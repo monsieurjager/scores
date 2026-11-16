@@ -543,3 +543,46 @@ button.detail-team:active { transform: scale(.96); }
 .info-row + .info-row { border-top: 1px solid color-mix(in srgb, var(--edge) 50%, transparent); }
 .info-row > span:nth-of-type(1) { flex: 1; }
 .info-row svg { color: var(--sub); flex: none; }
+.st-rank { display: inline-flex; align-items: center; gap: 5px; }
+.st-zone { width: 3px; height: 18px; border-radius: 2px; flex: none; }
+.st-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 10px 4px 2px; font-size: 12px; color: var(--sub); }
+.st-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.st-legend i { width: 10px; height: 10px; border-radius: 3px; }
+.comp-hero { display: flex; align-items: center; gap: 14px; padding: 6px 4px 4px; }
+.comp-hero h1 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+.comp-hero p { margin: 3px 0 0; font-size: 13px; color: var(--sub); }
+.comp-hero .comp-logo { border-radius: 20px; }
+.cgroup-head.static { cursor: default; }
+.leaders { padding: 2px 12px; }
+.leader { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 2px; text-align: left; }
+.leader + .leader { border-top: 1px solid color-mix(in srgb, var(--edge) 45%, transparent); }
+.leader-rank { width: 20px; text-align: center; font-size: 13px; font-weight: 800; color: var(--sub); flex: none; }
+.leader-who { flex: 1; min-width: 0; display: grid; }
+.leader-name { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leader-team { font-size: 12px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leader-v { font-size: 18px; font-weight: 800; min-width: 26px; text-align: right; }
+.team-hero2 { position: relative; margin: 0 -16px; padding: 10px 16px 18px; display: grid; justify-items: center; gap: 8px; text-align: center; background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--c1) 75%, transparent) 0%, color-mix(in srgb, var(--c1) 25%, transparent) 50%, transparent 100%); border-radius: 0 0 28px 28px; }
+.team-hero2 h1 { margin: 2px 0 0; font-size: 28px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+.team-hero2 p { margin: 0; font-size: 13px; color: var(--sub); }
+.follow { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 18px; border-radius: 20px; background: var(--glass); border: 1px solid var(--edge); font-size: 14px; font-weight: 700; }
+.follow.on { background: var(--pill-on); color: var(--pill-on-fg); border-color: transparent; }
+.follow svg { width: 17px; height: 17px; }
+.next-card { list-style: none; border-radius: 26px; padding: 16px; color: #fff; border: 1px solid rgba(255, 255, 255, .14); background: linear-gradient(115deg, color-mix(in srgb, var(--c1) 70%, transparent), rgba(20, 24, 32, .7) 55%, color-mix(in srgb, var(--c2) 55%, transparent)); cursor: pointer; }
+.next-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, .85); }
+.next-head > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.next-teams { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-top: 12px; }
+.next-team { display: grid; justify-items: center; gap: 6px; font-size: 14px; font-weight: 700; text-align: center; }
+.next-time { font-size: 26px; font-weight: 800; padding: 0 6px; }
+.form5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.form-tile { display: grid; justify-items: center; gap: 6px; padding: 10px 4px; border-radius: 18px; background: var(--glass); border: 1px solid var(--edge); font-size: 12px; font-weight: 700; }
+.form-tile b { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; color: #fff; }
+.form-tile b.win { background: #1ea952; }
+.form-tile b.draw { background: #6b7280; }
+.form-tile b.loss { background: #e5484d; }
+.dated + .dated { border-top: 1px solid color-mix(in srgb, var(--edge) 35%, transparent); }
+.dated-d { display: flex; align-items: center; gap: 6px; padding: 10px 16px 0; font-size: 12px; font-weight: 600; color: var(--sub); }
+.dated .mrow { padding-top: 6px; }
+.squad { padding: 2px 14px; }
+.squad-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; font-size: 15px; font-weight: 600; }
+.squad-row + .squad-row { border-top: 1px solid color-mix(in srgb, var(--edge) 45%, transparent); }
+.squad-n { width: 30px; height: 30px; border-radius: 15px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; flex: none; }
