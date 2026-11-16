@@ -71,7 +71,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { background: var(--bg); min-height: 100%; overflow-x: clip; overscroll-behavior: none; touch-action: pan-y; }
+html { background: var(--bg); min-height: 100lvh; overflow-x: clip; overscroll-behavior: none; touch-action: pan-y; }
 body {
   margin: 0;
   background: var(--bg);
@@ -88,7 +88,9 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* Lueurs d'ambiance : donnent de la matière au verre (dégradés, donc très légers à afficher) */
 .ambient {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: var(--lo); overflow: hidden;
+  /* Déborde sous la barre d'accueil de l'iPhone (sinon bande noire en bas en mode app) */
+  position: fixed; top: calc(-1 * env(safe-area-inset-top)); left: 0; right: 0; height: calc(100lvh + env(safe-area-inset-top) + env(safe-area-inset-bottom) + 40px);
+  z-index: 0; pointer-events: none; opacity: var(--lo); overflow: hidden;
   background:
     radial-gradient(60vmax 60vmax at -15% -8%, var(--l1), transparent 62%),
     radial-gradient(55vmax 55vmax at 115% 42%, var(--l2), transparent 62%),
