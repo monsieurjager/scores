@@ -9,6 +9,7 @@ import { MatchDetail } from './components/MatchDetail';
 import { closeSheets, popSheet, useSheets } from './lib/matchStore';
 import { TeamSheet } from './components/TeamSheet';
 import { CompetitionSheet } from './components/CompetitionSheet';
+import { SearchSheet } from './components/SearchSheet';
 import { Settings } from './screens/Settings';
 import { applyTheme } from './lib/settings';
 import { registerServiceWorker, startUpdateChecks } from './lib/update';
@@ -53,6 +54,7 @@ function App() {
       {tab === 'reglages' && <Settings />}
       {top?.type === 'match' && <MatchDetail key={`m${sheets.length}`} id={top.id} onClose={popSheet} canGoBack={back} />}
       {top?.type === 'team' && <TeamSheet key={`t${sheets.length}`} sport={top.sport} team={top.team} national={top.national} onBack={popSheet} canGoBack={back} />}
+      {top?.type === 'search' && <SearchSheet key={`s${sheets.length}`} onBack={popSheet} canGoBack={back} />}
       {top?.type === 'comp' && <CompetitionSheet key={`c${sheets.length}`} id={top.id} onBack={popSheet} canGoBack={back} />}
       <nav class="tabbar glass" aria-label="Navigation principale">
         {TABS.map((t) => (

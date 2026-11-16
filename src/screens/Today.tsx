@@ -10,10 +10,10 @@ import { isFavMatch, useFavorites } from '../lib/favorites';
 import { effectiveComp, matchesFilter, type SportFilter } from '../lib/filters';
 import { enabledCompetitions, useSettings } from '../lib/settings';
 import { useOnline } from '../hooks/useOnline';
-import { Chips, CompactCard, Empty, LiveCard, Section, Segmented, Skeletons } from '../components/ui';
+import { Chips, CompactCard, CompGroup, Empty, HeroLive, Section, Segmented, Skeletons } from '../components/ui';
 import { pushSheet } from '../lib/matchStore';
 import { useGestures } from '../hooks/useGestures';
-import { IconCalendar } from '../components/icons';
+import { IconCalendar, IconSearch } from '../components/icons';
 
 
 /** `?day=2026-11-07` ouvre directement ce jour (pratique pour tester). */
@@ -62,13 +62,12 @@ export function Today({ onUpcoming }: { onUpcoming: () => void }) {
   const visible: Match[] = useMemo(() => (state.status === 'ready' ? state.matches.filter(filter) : []), [state, sport, activeComp]);
   // Jour sans match : renvoi vers l'onglet « À venir » (les matchs des autres jours n'ont rien à faire ici).
   const emptyDay = state.status === 'ready' && visible.length === 0;
-  // Les matchs de mes équipes passent en premier, dans une section à part.
-  const favMatches = visible.filter((m) => isFavMatch(m, favKeys)).sort((a, b) => Number(b.status === 'live') - Number(a.status === 'live') || a.kickoff.localeCompare(b.kickoff));
-  const others = visible.filter((m) => !isFavMatch(m, favKeys));
-  const live = others.filter((m) => m.status === 'live');
-  // Match passé resté « à venir » chez la source (« Score n.c. ») : rangé avec les terminés.
-  const upcoming = others.filter((m) => (m.status === 'scheduled' && !isStale(m)) || m.status === 'postponed');
-  const finished = others.filter((m) => m.status === 'finished' || isStale(m));
+  // En direct : carrousel (mes équipes d'abord). Puis mes équipes, puis un bloc par compétition.
+  const isLive = (m: Match) => m.status === 'live';
+  const liveAll = visible.filter(isLive).sort((a, b) => Number(isFavMatch(b, favKeys)) - Number(isFavMatch(a, favKeys)));
+  const favMatches = visible.filter((m) => !isLive(m) && isFavMatch(m, favKeys)).sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+  const groups = COMPETITIONS.map((c) => ({ id: c.id, matches: visible.filter((m) => !isLive(m) && !isFavMatch(m, favKeys) && m.competitionId === c.id).sort((a, b) => a.kickoff.localeCompare(b.kickoff)) })).filter((g) => g.matches.length > 0);
+  const [heroIndex, setHeroIndex] = useState(0);
   const [slide, setSlide] = useState<'' | 'next' | 'prev'>('');
   const go = (n: number) => {
     setSlide(n > 0 ? 'next' : 'prev');
@@ -93,6 +92,9 @@ export function Today({ onUpcoming }: { onUpcoming: () => void }) {
           <div class="large-title">
             <h1>Scores</h1>
           </div>
+          <button class="glass icon-btn round" aria-label="Rechercher une équipe ou une compétition" onClick={() => pushSheet({ type: 'search' })}>
+            <IconSearch />
+          </button>
           <label class="glass icon-btn round" aria-label="Choisir une date">
             <IconCalendar />
             <input
@@ -110,7 +112,15 @@ export function Today({ onUpcoming }: { onUpcoming: () => void }) {
         <DayStrip value={dayKey} onChange={pick} stuck={scrolled} />
 
         <div class="filters">
+          <div class="filters-row">
           <Segmented<SportFilter> label="Sport" value={sport} onChange={(v) => { setSport(v); setComp('all'); }} options={[{ id: 'all', label: 'Tout' }, ...SPORTS.map((s) => ({ id: s.id as SportFilter, label: s.label }))]} />
+            {liveAll.length > 0 && (
+              <span class="live-count">
+                <span class="live-dot" />
+                {liveAll.length} en direct
+              </span>
+            )}
+          </div>
           {showChips && <Chips value={activeComp} options={compOptions} onChange={setComp} />}
           {showChips && COMPETITIONS.some((c) => c.id === activeComp) && (
             <button class="comp-link" onClick={() => pushSheet({ type: 'comp', id: activeComp })}>
@@ -130,26 +140,43 @@ export function Today({ onUpcoming }: { onUpcoming: () => void }) {
               onAction={onUpcoming}
             />
           )}
+          {liveAll.length > 0 && (
+            <section class="section">
+              <h2 class="section-title is-live">
+                <span class="live-dot" />
+                En direct
+              </h2>
+              <ul
+                class="hero-rail"
+                onScroll={(e) => {
+                  const el = e.currentTarget as HTMLElement;
+                  const first = el.firstElementChild as HTMLElement | null;
+                  if (first) setHeroIndex(Math.round(el.scrollLeft / (first.offsetWidth + 10)));
+                }}
+              >
+                {liveAll.map((m) => (
+                  <HeroLive key={m.id} m={m} />
+                ))}
+              </ul>
+              {liveAll.length > 1 && (
+                <div class="rail-dots" aria-hidden="true">
+                  {liveAll.map((m, i) => (
+                    <span key={m.id} class={i === Math.min(heroIndex, liveAll.length - 1) ? 'on' : ''} />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
           {favMatches.length > 0 && (
             <Section title="Mes équipes">
-              {favMatches.map((m) => (m.status === 'live' ? <LiveCard key={m.id} m={m} /> : <CompactCard key={m.id} m={m} />))}
+              {favMatches.map((m) => (
+                <CompactCard key={m.id} m={m} />
+              ))}
             </Section>
           )}
-          {live.length > 0 && (
-            <Section title="En direct" live>
-              {live.map((m) => <LiveCard key={m.id} m={m} />)}
-            </Section>
-          )}
-          {upcoming.length > 0 && (
-            <Section title="À venir">
-              {upcoming.map((m) => <CompactCard key={m.id} m={m} />)}
-            </Section>
-          )}
-          {finished.length > 0 && (
-            <Section title="Terminés">
-              {finished.map((m) => <CompactCard key={m.id} m={m} />)}
-            </Section>
-          )}
+          {groups.map((g) => (
+            <CompGroup key={g.id} id={g.id} matches={g.matches} onOpen={() => pushSheet({ type: 'comp', id: g.id })} />
+          ))}
         </div>
       </main>
     </>

@@ -34,7 +34,8 @@ export function useMatch(id: string | null): Match | undefined {
 export type Sheet =
   | { type: 'match'; id: string }
   | { type: 'team'; sport: SportId; team: Team; national: boolean }
-  | { type: 'comp'; id: string };
+  | { type: 'comp'; id: string }
+  | { type: 'search' };
 
 let stack: Sheet[] = [];
 const sheetSubs = new Set<() => void>();

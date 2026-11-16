@@ -127,6 +127,8 @@ export interface Competition {
   name: string;
   /** Chemin ESPN : /sports/{espn.sport}/{espn.league}/scoreboard */
   espn: { sport: 'soccer' | 'rugby'; league: string };
+  /** Logo de la compétition (ESPN) */
+  logo?: string;
   /** Rugby : ne garder que les matchs impliquant ces équipes. */
   onlyTeams?: string[];
   /** Clubs : ne garder que les matchs impliquant ces équipes (identifiants ESPN). */
