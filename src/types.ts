@@ -88,6 +88,8 @@ export interface MatchSummary {
   form?: { home: FormResult[]; away: FormResult[] };
   /** Dernières confrontations directes. */
   h2h: HeadToHead[];
+  /** Passeurs décisifs, par but : clé « idÉquipe|minute » (ex. « 478|80' ») */
+  assists: Record<string, string>;
 }
 
 export interface StandingRow {

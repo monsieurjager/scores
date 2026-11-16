@@ -197,7 +197,7 @@ export const espnProvider: MatchProvider = {
       boxscore?: { teams?: { homeAway: 'home' | 'away'; statistics?: { name: string; displayValue: string }[] }[] };
       rosters?: { homeAway: 'home' | 'away'; team?: { id?: string }; formation?: string; roster?: { starter?: boolean; jersey?: string; subbedIn?: boolean; subbedOut?: boolean; position?: { abbreviation?: string }; athlete: Ath; stats?: { name: string; value?: number }[] }[] }[];
       header?: { competitions?: { status?: { type?: { state?: string } }; competitors?: { homeAway: 'home' | 'away'; score?: string }[] }[] };
-      keyEvents?: { id: string; type: { text: string }; clock?: { value?: number; displayValue?: string }; team?: { id: string }; participants?: { athlete: Ath }[] }[];
+      keyEvents?: { id: string; type: { text: string }; scoringPlay?: boolean; clock?: { value?: number; displayValue?: string }; team?: { id: string }; participants?: { athlete: Ath }[] }[];
       lastFiveGames?: { team: { id: string }; events?: { gameResult?: string; score?: string; gameDate?: string; opponent?: { displayName?: string } }[] }[];
       seasonseries?: { events?: { date?: string; competitors?: { homeAway: string; score?: string | { displayValue?: string }; team: { displayName?: string } }[] }[] }[];
       headToHeadGames?: { team: { displayName?: string }; events?: { gameDate?: string; score?: string; atVs?: string; opponent?: { displayName?: string } }[] }[];
@@ -259,6 +259,13 @@ export const espnProvider: MatchProvider = {
       .filter((k) => k.type.text === 'Substitution' && k.team)
       .map((k) => ({ id: `sub-${k.id}`, kind: 'sub' as const, clock: k.clock?.displayValue?.replace("'+", '+') ?? '', seconds: k.clock?.value ?? 0, teamId: k.team!.id, player: k.participants?.[0] ? nameOf(k.participants[0].athlete) : undefined, out: k.participants?.[1] ? nameOf(k.participants[1].athlete) : undefined, points: 0 }));
 
+    // Passeurs décisifs (football) : 2e participant d'une action de but
+    const assists: Record<string, string> = {};
+    for (const k of j.keyEvents ?? []) {
+      const helper = k.participants?.[1]?.athlete;
+      if (k.scoringPlay && k.team && helper) assists[`${k.team.id}|${k.clock?.displayValue?.replace("'+", '+') ?? ''}`] = nameOf(helper);
+    }
+
     // Forme récente : identifiants des équipes du match pour savoir qui est à domicile
     const nat = !!comp.onlyTeams;
     const nm = (n?: string) => (n ? (nat ? frenchName(n) : n) : '—');
@@ -301,6 +308,7 @@ export const espnProvider: MatchProvider = {
       subs,
       form: fh.length || fa.length ? { home: fh, away: fa } : undefined,
       h2h: h2h.slice(0, 5),
+      assists,
     };
     return summary;
   },

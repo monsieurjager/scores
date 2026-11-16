@@ -54,7 +54,7 @@ export function PlayerFacts({ p }: { p: LineupPlayer }) {
       )}
       {(p.assists ?? 0) > 0 && (
         <span class="fact assist" title={`${p.assists} passe(s) décisive(s)`}>
-          <AssistIcon />
+          <span class="pd">PD</span>
           {p.assists! > 1 && <b>×{p.assists}</b>}
         </span>
       )}
