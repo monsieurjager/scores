@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'preact/hooks';
-import type { FormResult, Lineup, Match, MatchEvent, MatchSummary, Odds } from '../types';
+import type { FormResult, Lineup, Match, MatchEvent, MatchSummary } from '../types';
 import { competitionById } from '../config/competitions';
 import { formatShortDate, formatTime } from '../lib/date';
 import { halfTimeScore, isStale } from '../lib/matchStats';
@@ -9,7 +9,6 @@ import { useStandings } from '../hooks/useStandings';
 import { Crest, Section, Segmented } from './ui';
 import { Standings } from './Standings';
 import { AssistIcon, Pitch, PlayerFacts, RatingPill } from './Pitch';
-import { picks } from '../lib/odds';
 import { Sheet } from './Sheet';
 
 const RUGBY_LABEL: Record<string, string> = { try: 'Essai', conversion: 'Transformation', penaltygoal: 'Pénalité', dropgoal: 'Drop', penaltytry: 'Essai de pénalité' };
@@ -82,30 +81,6 @@ function Timeline({ m, events, rugby }: { m: Match; events: MatchEvent[]; rugby:
           </svg>
         </button>
       )}
-    </div>
-  );
-}
-
-/** Paris dont la cote est comprise entre 1,30 et 2,00, rédigés en clair. */
-function OddsPanel({ m, odds, sport }: { m: Match; odds: Odds; sport: 'football' | 'rugby' }) {
-  const list = picks(odds, m.home.name, m.away.name, sport);
-  const fr = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return (
-    <div class="glass-panel">
-      {list.length === 0 && <div class="tl-empty">Aucune cote entre 1,30 et 2,00 pour ce match.</div>}
-      {list.map((p) => (
-        <div class="pick" key={p.text}>
-          <span class="pick-text">{p.text}</span>
-          <span class="pick-odd tnum" title={p.derived ? 'Cote calculée à partir des cotes 1 N 2' : undefined}>
-            {p.derived ? '≈ ' : ''}
-            {fr(p.odds)}
-          </span>
-        </div>
-      ))}
-      <p class="odds-src">
-        {odds.provider ? `Cotes ${odds.provider}, via ESPN` : 'Cotes via ESPN'}
-        {list.some((p) => p.derived) ? ' · ≈ calculée à partir des cotes 1 N 2' : ''}
-      </p>
     </div>
   );
 }
@@ -273,14 +248,6 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
         </p>
       )}
 
-      {summary?.odds && m.status === 'scheduled' && (
-        <Section title="Cotes entre 1,30 et 2,00">
-          <li style={{ listStyle: 'none' }}>
-            <OddsPanel m={m} odds={summary.odds} sport={comp.sport} />
-          </li>
-        </Section>
-      )}
-
       <Section title={comp.sport === 'rugby' ? 'Points' : 'Buts'}>
         <li style={{ listStyle: 'none' }}>
           {hasEvents ? <Timeline m={m} events={events} rugby={comp.sport === 'rugby'} /> : <div class="glass-panel note">{stale ? "La source n'a pas transmis le résultat de ce match." : m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>}
@@ -330,14 +297,6 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
                 </div>
               ))}
             </div>
-          </li>
-        </Section>
-      )}
-
-      {summary?.odds && m.status !== 'scheduled' && (
-        <Section title="Cotes d'avant-match · 1,30 à 2,00">
-          <li style={{ listStyle: 'none' }}>
-            <OddsPanel m={m} odds={summary.odds} sport={comp.sport} />
           </li>
         </Section>
       )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decimalOdds, rate, roleOf } from './ratings';
+import { rate, roleOf } from './ratings';
 
 const zero = { goals: 0, assists: 0, shotsOnTarget: 0, saves: 0, goalsConceded: 0, foulsCommitted: 0, foulsSuffered: 0, yellow: 0, red: 0, ownGoals: 0 };
 
@@ -23,11 +23,3 @@ describe('notes des joueurs', () => {
   });
 });
 
-describe('cotes', () => {
-  it('cote américaine → décimale', () => {
-    expect(decimalOdds(-650)).toBe(1.15);
-    expect(decimalOdds(1100)).toBe(12);
-    expect(decimalOdds(650)).toBe(7.5);
-    expect(decimalOdds(-150)).toBe(1.67);
-  });
-});

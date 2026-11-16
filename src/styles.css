@@ -257,17 +257,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .tl-empty { padding: 12px 2px; color: var(--sub); font-size: 14px; text-align: center; }
 .tl-more { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 4px; padding: 12px 0 4px; border: 0; border-top: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); background: none; color: var(--accent, var(--fg)); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .tl-more svg { transition: transform .2s; }
-.odds { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
-.odd { display: grid; justify-items: center; gap: 4px; padding: 10px 4px; border-radius: 16px; background: color-mix(in srgb, var(--skeleton) 70%, transparent); }
-.odd.fav { background: color-mix(in srgb, var(--fg) 12%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--fg) 35%, transparent); }
-.odd-head { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--sub); }
-.odd-val { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
-.odd-pct { font-size: 12px; color: var(--sub); }
-.pick { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 2px; }
-.pick + .pick { border-top: 1px solid color-mix(in srgb, var(--edge) 70%, transparent); }
-.pick-text { font-size: 15px; font-weight: 600; line-height: 1.3; }
-.pick-odd { flex: none; min-width: 58px; padding: 6px 10px; border-radius: 12px; text-align: center; font-size: 15px; font-weight: 800; background: color-mix(in srgb, var(--fg) 10%, transparent); }
-.odds-src { margin: 10px 2px 0; font-size: 11.5px; color: var(--sub); text-align: center; }
 .rate { display: inline-block; padding: 1px 5px; border-radius: 7px; font-size: 11px; font-weight: 800; line-height: 1.35; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rate.top { background: #1d7cf2; }
 .rate.good { background: #1ea952; }

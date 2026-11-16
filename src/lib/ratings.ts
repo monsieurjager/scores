@@ -41,5 +41,3 @@ export function rate(s: PlayerStats, role: Role, result: 'W' | 'D' | 'L', starte
 /** Classe de couleur, comme les applis de scores : ≥ 8 excellent, ≥ 7 bon, ≥ 6 moyen, sinon faible. */
 export const ratingTone = (r: number) => (r >= 8 ? 'top' : r >= 7 ? 'good' : r >= 6 ? 'avg' : 'low');
 
-/** Cote américaine (+650, -150) → cote décimale (7,50 ; 1,67). */
-export const decimalOdds = (ml: number) => Math.round((ml > 0 ? 1 + ml / 100 : 1 + 100 / -ml) * 100) / 100;
