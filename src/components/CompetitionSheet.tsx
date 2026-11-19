@@ -7,8 +7,9 @@ import { useAsync } from '../hooks/useAsync';
 import { Sheet } from './Sheet';
 import { CompLogo, Crest, HeroLive, MatchRow, Section } from './ui';
 import { Standings } from './Standings';
+import { BracketView } from './BracketView';
 
-type Tab = 'table' | 'day' | 'leaders';
+type Tab = 'table' | 'day' | 'leaders' | 'bracket';
 
 function LeaderList({ list, unit }: { list: Leader[]; unit: string }) {
   return (
@@ -45,6 +46,19 @@ export function CompetitionSheet({ id, canGoBack, onBack }: { id: string; canGoB
     [id],
   );
   const leaders = useAsync((signal) => (comp ? provider.getLeaders(comp, signal).catch(() => null) : Promise.resolve(null)), [id]);
+  const bracket = useAsync(
+    (signal) =>
+      comp
+        ? provider.getBracket(comp, signal).then(
+            (b) => {
+              if (b) publishMatches(b.rounds.flatMap((r) => r.ties.flatMap((t) => t.legs)));
+              return b;
+            },
+            () => null,
+          )
+        : Promise.resolve(null),
+    [id],
+  );
   const [tab, setTab] = useState<Tab>('table');
   const [kind, setKind] = useState<'goals' | 'assists'>('goals');
   if (!comp) return null;
@@ -55,6 +69,7 @@ export function CompetitionSheet({ id, canGoBack, onBack }: { id: string; canGoB
     ...(hasTable ? [{ id: 'table' as Tab, label: 'Classement' }] : []),
     ...(matchday.length ? [{ id: 'day' as Tab, label: 'Journée' }] : []),
     ...(leaders ? [{ id: 'leaders' as Tab, label: 'Buteurs' }] : []),
+    ...(bracket ? [{ id: 'bracket' as Tab, label: 'Phase finale' }] : []),
   ];
   const current = tabs.some((t) => t.id === tab) ? tab : tabs[0]?.id;
 
@@ -137,6 +152,14 @@ export function CompetitionSheet({ id, canGoBack, onBack }: { id: string; canGoB
               </button>
             </div>
             <LeaderList list={kind === 'goals' ? leaders.goals : leaders.assists} unit={kind === 'goals' ? 'buts' : 'passes décisives'} />
+          </li>
+        </Section>
+      )}
+
+      {current === 'bracket' && bracket && (
+        <Section title="Phase finale">
+          <li style={{ listStyle: 'none' }}>
+            <BracketView b={bracket} />
           </li>
         </Section>
       )}

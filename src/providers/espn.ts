@@ -1,4 +1,4 @@
-import type { Competition, CompetitionView, Leaders, Leader, RosterPlayer, EventKind, FormResult, HeadToHead, Lineup, LineupPlayer, Match, MatchEvent, MatchProvider, MatchSummary, SummaryStat, MatchStatus, StandingRow, StandingsTable, Team, TeamEntry } from '../types';
+import type { Bracket, BracketTie, Competition, CompetitionView, Leaders, Leader, RosterPlayer, EventKind, FormResult, HeadToHead, Lineup, LineupPlayer, Match, MatchEvent, MatchProvider, MatchSummary, SummaryStat, MatchStatus, StandingRow, StandingsTable, Team, TeamEntry } from '../types';
 import teamsData from '../data/teams.json';
 import { COMPETITIONS } from '../config/competitions';
 import { rate, roleOf, type PlayerStats } from '../lib/ratings';
@@ -351,6 +351,28 @@ export const espnProvider: MatchProvider = {
     return [...byId.values()].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
   },
 
+  async getBracket(comp, signal) {
+    if (comp.sport !== 'football' || !BRACKET_COMPS.has(comp.id)) return null;
+    const open = { ...comp, onlyTeams: undefined, onlyTeamIds: undefined }; // tout le tableau, pas seulement les équipes suivies
+    const year = async (y: number) => {
+      const r = await fetch(`${BASE}/soccer/${comp.espn.league}/scoreboard?dates=${y}&limit=800`, { signal });
+      return r.ok ? (((await r.json()) as { events?: BracketEvent[] }).events ?? []) : [];
+    };
+    const now = new Date().getFullYear();
+    const events = (await Promise.all([now - 1, now, now + 1].map((y) => year(y).catch(() => [])))).flat();
+    const ko = events.filter((e) => ROUND_NAMES[e.season?.slug ?? ''] !== undefined);
+    if (!ko.length) return null;
+    // Saison la plus récente qui a une phase finale (programmée ou jouée)
+    const seasonYear = Math.max(...ko.map((e) => e.season?.year ?? 0));
+    const mine = ko.filter((e) => (e.season?.year ?? 0) === seasonYear);
+    const current = mine.some((e) => e.status.type.state !== 'post') || Date.now() - Math.max(...mine.map((e) => Date.parse(e.date))) < 120 * 86_400_000;
+    const rounds = Object.keys(ROUND_NAMES)
+      .map((slug) => ({ slug, name: ROUND_NAMES[slug], ties: ties(mine.filter((e) => e.season?.slug === slug), open, !!comp.onlyTeams) }))
+      .filter((r) => r.ties.length > 0);
+    const out: Bracket = { season: seasonLabel(comp.id, seasonYear), current, rounds };
+    return out;
+  },
+
   async getLeaders(comp, signal) {
     if (comp.sport !== 'football' || comp.onlyTeams) return null;
     const res = await fetch(`${BASE}/${comp.espn.sport}/${comp.espn.league}/statistics`, { signal });
@@ -461,3 +483,52 @@ async function fetchTeamSchedule(comp: Competition, teamId: string, query: strin
     .filter((m): m is Match => m !== null);
 }
 
+
+// ---------------------------------------------------------------- Phase finale (tableau)
+
+const BRACKET_COMPS = new Set(['c1', 'c3', 'c4', 'cdm', 'euro']);
+const ROUND_NAMES: Record<string, string> = {
+  'knockout-round-playoffs': 'Barrages',
+  'round-of-32': '16es de finale',
+  'round-of-16': '8es de finale',
+  quarterfinals: 'Quarts de finale',
+  semifinals: 'Demi-finales',
+  '3rd-place-match': 'Match pour la 3e place',
+  final: 'Finale',
+};
+type BracketEvent = EspnEvent & { season?: { year?: number; slug?: string }; competitions: (EspnEvent['competitions'][number] & { notes?: { headline?: string }[]; competitors: (EspnCompetitor & { winner?: boolean })[] })[] };
+
+const seasonLabel = (compId: string, y: number) => (compId === 'cdm' || compId === 'euro' ? String(y) : `${y}-${String(y + 1).slice(2)}`);
+
+/** Regroupe les matchs d'un tour en confrontations (aller-retour), avec score cumulé et qualifié. */
+function ties(events: BracketEvent[], comp: Competition, national: boolean): BracketTie[] {
+  const byPair = new Map<string, BracketEvent[]>();
+  for (const e of [...events].sort((a, b) => a.date.localeCompare(b.date))) {
+    const ids = e.competitions[0]?.competitors.map((c) => c.team.id).sort().join('-');
+    if (ids) byPair.set(ids, [...(byPair.get(ids) ?? []), e]);
+  }
+  return [...byPair.values()].map((legs) => {
+    const first = legs[0].competitions[0];
+    const h = first.competitors.find((c) => c.homeAway === 'home')!;
+    const a = first.competitors.find((c) => c.homeAway === 'away')!;
+    const matches = legs.map((e) => normalize(e, national ? { ...comp, onlyTeams: undefined } : comp)).filter((m): m is Match => m !== null).map((m) => (national ? { ...m, home: toTeam(legs[0].competitions[0].competitors.find((c) => c.team.id === m.home.id)!.team, true), away: toTeam(legs[0].competitions[0].competitors.find((c) => c.team.id === m.away.id)!.team, true) } : m));
+    const played = matches.filter((m) => m.status === 'finished' || m.status === 'live');
+    const goals = (id: string) => played.reduce((s, m) => s + (m.home.id === id ? m.homeScore ?? 0 : m.away.id === id ? m.awayScore ?? 0 : 0), 0);
+    const homeAgg = played.length ? goals(h.team.id) : null;
+    const awayAgg = played.length ? goals(a.team.id) : null;
+    const last = legs[legs.length - 1];
+    const lastC = last.competitions[0];
+    const done = last.status.type.state === 'post';
+    let winner: BracketTie['winner'];
+    if (done && homeAgg != null && awayAgg != null) {
+      if (homeAgg !== awayAgg) winner = homeAgg > awayAgg ? 'home' : 'away';
+      else {
+        const w = (lastC.competitors as (EspnCompetitor & { winner?: boolean })[]).find((c) => c.winner);
+        if (w) winner = w.team.id === h.team.id ? 'home' : 'away';
+      }
+    }
+    const pens = lastC.notes?.map((n) => n.headline ?? '').find((t) => /penalt/i.test(t));
+    const note = pens ? `tirs au but ${/(\d+-\d+)/.exec(pens)?.[1] ?? ''}`.trim() : undefined;
+    return { home: toTeam(h.team, national), away: toTeam(a.team, national), homeAgg, awayAgg, winner, note, legs: matches };
+  });
+}

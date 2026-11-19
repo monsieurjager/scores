@@ -95,6 +95,24 @@ export interface RosterPlayer {
   role: 'gk' | 'def' | 'mid' | 'att';
 }
 
+export interface BracketTie {
+  /** Équipe qui reçoit au match aller */
+  home: Team;
+  away: Team;
+  homeAgg: number | null;
+  awayAgg: number | null;
+  winner?: 'home' | 'away';
+  /** Précision : « tirs au but 4-3 » */
+  note?: string;
+  legs: Match[];
+}
+
+export interface Bracket {
+  season: string;
+  current: boolean;
+  rounds: { slug: string; name: string; ties: BracketTie[] }[];
+}
+
 export interface CompetitionView {
   tables: StandingsTable[];
   matchday: Match[];
@@ -186,6 +204,8 @@ export interface MatchProvider {
   getLeaders(comp: Competition, signal?: AbortSignal): Promise<Leaders | null>;
   /** Effectif d'une équipe dans une compétition, ou null. */
   getRoster(comp: Competition, teamId: string, signal?: AbortSignal): Promise<RosterPlayer[] | null>;
+  /** Phase finale (tableau) d'une coupe de foot, ou null. */
+  getBracket(comp: Competition, signal?: AbortSignal): Promise<Bracket | null>;
   /** Équipes proposées dans le sélecteur de favoris. */
   getTeams(signal?: AbortSignal): Promise<TeamEntry[]>;
 }
