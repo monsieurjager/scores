@@ -11,6 +11,7 @@ import { detect, lineupsAlert, type Alert, type Stored, type TeamSheet } from '.
 import { fetchDays, fetchEvent, signature, type Parsed } from './espn.ts';
 import { frenchName } from '../../src/config/teamNames.ts';
 import { generateVapid, sendPush, type Vapid } from './webpush.ts';
+import { recapFor, teamKeysOf, type RecapMatch } from './recap.ts';
 import { deadToken, sendApns, type ApnsConfig } from './apns.ts';
 import { important, liveAttributes, liveContent, type LiveContent, type LiveTeam } from './live.ts';
 
@@ -25,8 +26,8 @@ interface Env {
   APNS_BUNDLE_ID?: string;
 }
 
-type Prefs = { goals: boolean; kickoff: boolean; halftime: boolean; fulltime: boolean; red: boolean; lineups: boolean; live: boolean };
-const DEFAULT_PREFS: Prefs = { goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true, live: true };
+type Prefs = { goals: boolean; kickoff: boolean; halftime: boolean; fulltime: boolean; red: boolean; lineups: boolean; recap: boolean; live: boolean };
+const DEFAULT_PREFS: Prefs = { goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true, recap: true, live: true };
 const PREF_OF: Record<Alert['kind'], keyof Prefs> = { score: 'goals', kickoff: 'kickoff', halftime: 'halftime', fulltime: 'fulltime', red: 'red', lineups: 'lineups' };
 // Services push autorisés (évite que le service serve à envoyer des requêtes vers n'importe quelle adresse)
 const PUSH_HOSTS = [/\.push\.apple\.com$/, /^fcm\.googleapis\.com$/, /\.push\.services\.mozilla\.com$/, /\.notify\.windows\.com$/];
@@ -103,7 +104,8 @@ async function tick(env: Env, fresh?: Map<string, Parsed>): Promise<TickInfo> {
   const natives = (await env.DB.prepare('SELECT id, token, env, teams, prefs, start_token FROM native_subs').all<NativeRow>()).results;
   if (!subs.length && !natives.length) return { subs: 0, natives: 0 };
   const apns = apnsConfig(env);
-  const fav = new Set([...subs, ...natives].flatMap((s) => JSON.parse(s.teams) as string[]));
+  // Équipes à surveiller : favorites + équipes des joueurs suivis
+  const fav = new Set([...subs, ...natives].flatMap((s) => [...teamKeysOf(JSON.parse(s.teams) as string[])]));
   const now = Date.now();
   const day = parisDay(now);
   const plan = await kvGet<Plan>(env, 'plan');
@@ -160,6 +162,7 @@ async function tick(env: Env, fresh?: Map<string, Parsed>): Promise<TickInfo> {
   }
 
   if (planChanged) await kvSet(env, 'plan', plan);
+  await morningRecap(env, plan, subs, natives, apns, now).catch(() => {});
   await kvSet(env, 'watch', watch);
   if (apns) live += await liveStarts(env, apns, natives, plan, now).catch(() => 0);
   if (alerts.length) await logAlerts(env, alerts, now);
@@ -239,11 +242,23 @@ async function fetchLineups(comp: Competition, matchId: string): Promise<Alert |
 
 /** Alertes destinées à un abonné (ses équipes, ses préférences), avec le texte propre à son équipe. */
 function alertsFor(s: { teams: string; prefs: string }, alerts: Alert[]) {
-  const teams = new Set(JSON.parse(s.teams) as string[]);
+  const entries = JSON.parse(s.teams) as string[];
+  const teams = new Set(entries.filter((e) => !e.startsWith('p:')));
+  const players = new Set(entries.filter((e) => e.startsWith('p:')).map((e) => e.slice(2).split('@')[0]));
   const prefs = { ...DEFAULT_PREFS, ...(JSON.parse(s.prefs) as Partial<Prefs>) };
-  return alerts
-    .filter((a) => prefs[PREF_OF[a.kind]] && a.teamKeys.some((k) => teams.has(k)))
-    .map((a) => ({ a, body: (a.bodyByTeam && a.teamKeys.map((k) => (teams.has(k) ? a.bodyByTeam![k] : undefined)).find(Boolean)) || a.body }));
+  const out: { a: Alert; body: string }[] = [];
+  for (const a of alerts) {
+    if (!prefs[PREF_OF[a.kind]]) continue;
+    if (a.teamKeys.some((k) => teams.has(k))) {
+      // Équipe suivie ; si le buteur est aussi un joueur suivi, le titre le met en avant
+      const title = a.scorer && players.has(a.scorer.key) ? a.scorer.title : a.title;
+      out.push({ a: { ...a, title }, body: (a.bodyByTeam && a.teamKeys.map((k) => (teams.has(k) ? a.bodyByTeam![k] : undefined)).find(Boolean)) || a.body });
+    } else if (a.scorer && players.has(a.scorer.key)) {
+      // Seul le joueur est suivi : alerte à son nom (jamais silencieuse, l'abonné n'a pas reçu la première version)
+      out.push({ a: { ...a, title: a.scorer.title, silent: false, tag: `${a.tag}-p` }, body: a.body });
+    }
+  }
+  return out;
 }
 
 async function deliver(env: Env, subs: SubRow[], alerts: Alert[]) {
@@ -348,7 +363,8 @@ function cors(req: Request, env: Env): Record<string, string> {
 }
 const json = (data: unknown, headers: Record<string, string>, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
-const parseTeams = (v: unknown) => (Array.isArray(v) ? v.filter((t): t is string => typeof t === 'string' && /^(football|rugby):\d{1,10}$/.test(t)).slice(0, 100) : []);
+// Équipes (« football:160 ») et joueurs suivis (« p:football:231388@football:160 »)
+const parseTeams = (v: unknown) => (Array.isArray(v) ? v.filter((t): t is string => typeof t === 'string' && /^((football|rugby):\d{1,10}|p:(football|rugby):\d{1,12}@(football|rugby):\d{1,10})$/.test(t)).slice(0, 150) : []);
 function parsePrefs(v: unknown): Prefs {
   const p = (v ?? {}) as Record<string, unknown>;
   const prefs: Prefs = { ...DEFAULT_PREFS };
@@ -473,3 +489,28 @@ export default {
   fetch: (req: Request, env: Env) => handle(req, env).catch((e) => new Response(JSON.stringify({ error: String(e) }), { status: 500 })),
   scheduled: (_c: ScheduledController, env: Env, ctx: ExecutionContext) => ctx.waitUntil(everyMinute(env)),
 } satisfies ExportedHandler<Env>;
+
+/** Récap du matin, à 9 h (heure de Paris), une fois par jour : les matchs du jour de chaque abonné. */
+async function morningRecap(env: Env, plan: Plan, subs: SubRow[], natives: NativeRow[], apns: ApnsConfig | null, now: number) {
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', hour: '2-digit', hour12: false }).format(new Date(now)));
+  if (hour !== 9 || (await kvGet<string>(env, 'recap-day')) === plan.day) return;
+  await kvSet(env, 'recap-day', plan.day);
+  const matches: RecapMatch[] = [];
+  for (const [compId, planned] of Object.entries(plan.comps)) {
+    const comp = COMPETITIONS.find((c) => c.id === compId);
+    if (!comp) continue;
+    for (const pm of planned) if (!pm.done && pm.home && pm.away && parisDay(pm.kickoff) === plan.day && pm.kickoff > now) matches.push({ kickoff: pm.kickoff, sport: comp.sport, comp: comp.name, home: pm.home, away: pm.away });
+  }
+  if (!matches.length) return;
+  const wants = (prefs: string) => ({ ...DEFAULT_PREFS, ...(JSON.parse(prefs) as Partial<Prefs>) }).recap;
+  const vapid = await vapidKeys(env);
+  for (const s of subs) {
+    const r = wants(s.prefs) ? recapFor(JSON.parse(s.teams) as string[], matches) : null;
+    if (r) await sendPush(s, { title: r.title, body: r.body, tag: `recap-${plan.day}` }, vapid, env.SUBJECT).catch(() => 0);
+  }
+  if (!apns) return;
+  for (const s of natives) {
+    const r = wants(s.prefs) ? recapFor(JSON.parse(s.teams) as string[], matches) : null;
+    if (r) await sendApns(apns, { deviceToken: s.token, env: s.env, type: 'alert', payload: nativeAlert(r.title, r.body), collapseId: `recap-${plan.day}` }, jwtStore(env)).catch(() => ({ status: 0 }));
+  }
+}

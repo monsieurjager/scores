@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { detect, lineupsAlert, snapToStored } from '../src/detect.ts';
+import { recapFor } from '../src/recap.ts';
 
 const base = (o = {}) => ({
   id: 'l1-1', sport: 'football', compName: 'Ligue 1', state: 'pre', statusName: 'STATUS_SCHEDULED', clock: "0'",
@@ -105,5 +106,23 @@ export default async function (test) {
     const m = { id: 'x', sport: 'rugby', home: { id: '9', name: 'France' }, away: { id: '5', name: 'Afrique du Sud' } };
     assert.equal(lineupsAlert(m, [{ teamId: '9', name: 'France', starters: ['A', 'B'] }]), null);
   });
+  await t('joueur suivi : le but porte son identifiant et un titre à son nom', () => {
+    const { alerts } = detect({ s: 'in', h: 0, a: 0, ht: false, red: 0, ev: 0 }, base({ state: 'in', hs: 1, scoring: [{ teamId: '160', kind: 'goal', player: 'O. Dembélé', playerId: '231388', clock: "23'" }] }));
+    assert.deepEqual(alerts[0].scorer, { key: 'football:231388', title: '⚽️ O. Dembélé marque !' });
+  });
+
+  await t('récap du matin : matchs des équipes favorites et des équipes des joueurs suivis', () => {
+    const k = Date.parse('2026-11-21T20:10:00Z');
+    const ms = [
+      { kickoff: k, sport: 'rugby', comp: 'Championnat des Nations', home: { id: '9', name: 'France' }, away: { id: '10', name: 'Argentine' } },
+      { kickoff: Date.parse('2026-11-21T14:00:00Z'), sport: 'football', comp: 'Ligue 1', home: { id: '6851', name: 'Paris FC' }, away: { id: '7', name: 'Angers' } },
+      { kickoff: k, sport: 'football', comp: 'Ligue 1', home: { id: '1', name: 'Lens' }, away: { id: '2', name: 'Nice' } },
+    ];
+    const r = recapFor(['rugby:9', 'p:football:271137@football:6851'], ms);
+    assert.equal(r.title, "📅 Aujourd'hui · 2 matchs");
+    assert.equal(r.body, '15 h · Paris FC – Angers\n21 h 10 · France – Argentine (rugby)');
+    assert.equal(recapFor(['football:999'], ms), null);
+  });
+
   return failed;
 }

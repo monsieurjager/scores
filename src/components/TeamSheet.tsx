@@ -242,7 +242,7 @@ export function TeamSheet({ sport, team, national, canGoBack, onBack }: { sport:
                   <li style={{ listStyle: 'none' }}>
                     <div class="glass-panel squad">
                       {list.map((p) => (
-                        <div class="squad-row" key={p.id}>
+                        <div class="squad-row" key={p.id} role="button" tabIndex={0} onClick={() => pushSheet({ type: 'player', sport, id: p.id, name: p.name, team, number: p.number, position: p.role === 'gk' ? 'G' : p.role === 'def' ? 'D' : p.role === 'mid' ? 'M' : 'F' })}>
                           <span class="squad-n tnum" style={{ background: tint(team.color) }}>
                             {p.number ?? '–'}
                           </span>

@@ -1,5 +1,6 @@
 import { getSettings, updateSettings, type AlertSettings } from './settings';
 import { getFavorites } from './favorites';
+import { getPlayers } from './players';
 
 /** Adresse du service d'alertes (vide tant que Cloudflare n'est pas configuré). */
 export const ALERTS_URL = (import.meta.env.VITE_ALERTS_URL ?? '').replace(/\/$/, '');
@@ -41,8 +42,9 @@ async function post(path: string, body: unknown) {
   return res.json();
 }
 
-const prefsOf = (a: AlertSettings) => ({ goals: a.goals, kickoff: a.kickoff, halftime: a.halftime, fulltime: a.fulltime, red: a.red, lineups: a.lineups, live: a.live });
-const teams = () => getFavorites().map((f) => f.key);
+const prefsOf = (a: AlertSettings) => ({ goals: a.goals, kickoff: a.kickoff, halftime: a.halftime, fulltime: a.fulltime, red: a.red, lineups: a.lineups, recap: a.recap, live: a.live });
+/** Équipes favorites (« football:160 ») et joueurs suivis (« p:football:231388@football:160 » : joueur @ son équipe). */
+const teams = () => [...getFavorites().map((f) => f.key), ...getPlayers().map((p) => `p:${p.key}@${p.sport}:${p.team.id}`)];
 
 async function subscription(): Promise<PushSubscription | null> {
   const reg = await navigator.serviceWorker.ready;

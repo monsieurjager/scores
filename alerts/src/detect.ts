@@ -6,6 +6,8 @@ export interface ScoringEvent {
   teamId: string;
   kind: 'goal' | 'penalty' | 'owngoal' | 'try' | 'conversion' | 'penaltygoal' | 'dropgoal' | 'penaltytry';
   player?: string;
+  /** Identifiant ESPN du joueur (alertes des joueurs suivis) */
+  playerId?: string;
   clock: string;
 }
 
@@ -48,6 +50,8 @@ export interface Alert {
   bodyByTeam?: Record<string, string>;
   /** Mise à jour d'une notification déjà affichée (buteur arrivé après coup) : remplace sans sonner. */
   silent?: boolean;
+  /** Auteur du but / de l'essai : abonnés qui suivent ce joueur (« football:231388 ») et titre qui le met en avant */
+  scorer?: { key: string; title: string };
 }
 
 const LABEL: Record<ScoringEvent['kind'], string> = {
@@ -91,6 +95,7 @@ export function detect(prev: Stored | undefined, m: MatchSnap): { alerts: Alert[
       const title = last?.kind === 'penalty' ? `⚽️ ${team} marque sur penalty !` : team ? `⚽️ ${team} marque !` : '⚽️ But !';
       const who = last?.player ? line(last.clock, last.player, last.kind === 'owngoal' ? '(c.s.c.)' : undefined) : '';
       push('score', title, [who, score].filter(Boolean).join('\n'), silent);
+      if (last?.playerId && last.player && last.kind !== 'owngoal') alerts[alerts.length - 1].scorer = { key: `${m.sport}:${last.playerId}`, title: `⚽️ ${last.player} marque !` };
     } else {
       // Rugby : essai + transformation relevés ensemble → une seule notification, qui met en avant l'auteur de l'essai
       const kinds = new Set(fresh.map((e) => e.kind));
@@ -98,6 +103,7 @@ export function detect(prev: Stored | undefined, m: MatchSnap): { alerts: Alert[
       const what = kinds.has('try') ? (kinds.has('conversion') ? 'Essai transformé' : 'Essai') : main ? LABEL[main.kind] : 'Points';
       const team = scorerTeam ?? (main ? teamName(main.teamId) : '');
       push('score', line('🏉', what, team && `· ${team}`), [main?.player ? line(main.clock, main.player) : '', score].filter(Boolean).join('\n'), silent);
+      if (main?.playerId && main.player && main.kind === 'try') alerts[alerts.length - 1].scorer = { key: `${m.sport}:${main.playerId}`, title: `🏉 Essai de ${main.player} !` };
     }
   };
 

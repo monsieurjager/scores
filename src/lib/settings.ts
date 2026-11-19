@@ -21,11 +21,13 @@ export interface AlertSettings {
   fulltime: boolean;
   red: boolean;
   lineups: boolean;
+  /** Récap du matin (9 h) : les matchs du jour de mes équipes et joueurs */
+  recap: boolean;
   /** App iPhone : Activité en direct sur l'écran verrouillé et la Dynamic Island */
   live: boolean;
 }
 
-const DEFAULTS: Settings = { theme: 'dark', refreshSec: 5, hiddenComps: [], alerts: { enabled: false, goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true, live: true } };
+const DEFAULTS: Settings = { theme: 'dark', refreshSec: 5, hiddenComps: [], alerts: { enabled: false, goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true, recap: true, live: true } };
 const KEY = 'settings.v1';
 
 const read = (): Settings => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Match, SportId, Team } from '../types';
 import { competitionById } from '../config/competitions';
+import { playerTeamKeys } from './players';
 
 /** Équipe favorite, stockée localement (jamais envoyée sur le réseau). */
 export interface Fav {
@@ -57,7 +58,11 @@ export function useFavorites() {
   };
 }
 
+/** Match d'une équipe favorite, ou de l'équipe d'un joueur suivi. */
 export function isFavMatch(m: Match, keys: Set<string>): boolean {
   const c = competitionById(m.competitionId);
-  return !!c && (keys.has(favKey(c.sport, m.home.id)) || keys.has(favKey(c.sport, m.away.id)));
+  if (!c) return false;
+  const pk = playerTeamKeys();
+  const has = (id: string) => keys.has(favKey(c.sport, id)) || pk.has(favKey(c.sport, id));
+  return has(m.home.id) || has(m.away.id);
 }

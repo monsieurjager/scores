@@ -48,7 +48,8 @@ export type Sheet =
   | { type: 'match'; id: string }
   | { type: 'team'; sport: SportId; team: Team; national: boolean }
   | { type: 'comp'; id: string }
-  | { type: 'search' };
+  | { type: 'search' }
+  | { type: 'player'; sport: SportId; id: string; name: string; team: Team; number?: string; position?: string };
 
 let stack: Sheet[] = [];
 const sheetSubs = new Set<() => void>();

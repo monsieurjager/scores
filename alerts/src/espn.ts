@@ -10,7 +10,7 @@ interface EspnEvent {
   id: string;
   date: string;
   status: { displayClock?: string; type: { name: string; state: 'pre' | 'in' | 'post' } };
-  competitions: { competitors: { homeAway: 'home' | 'away'; score?: string; team: EspnTeam }[]; details?: { type: { text: string }; clock?: { displayValue?: string }; team?: { id: string }; scoringPlay?: boolean; redCard?: boolean; penaltyKick?: boolean; ownGoal?: boolean; athletesInvolved?: { shortName?: string; displayName?: string }[] }[] }[];
+  competitions: { competitors: { homeAway: 'home' | 'away'; score?: string; team: EspnTeam }[]; details?: { type: { text: string }; clock?: { displayValue?: string }; team?: { id: string }; scoringPlay?: boolean; redCard?: boolean; penaltyKick?: boolean; ownGoal?: boolean; athletesInvolved?: { id?: string; shortName?: string; displayName?: string }[] }[] }[];
 }
 
 const RUGBY: Record<string, ScoringEvent['kind'] | 'red'> = { try: 'try', conversion: 'conversion', 'penalty goal': 'penaltygoal', 'drop goal': 'dropgoal', 'penalty try': 'penaltytry', 'red card': 'red' };
@@ -33,12 +33,13 @@ function parse(e: EspnEvent, comp: Competition): Parsed | null {
   for (const d of c!.details ?? []) {
     if (!d.team) continue;
     const player = d.athletesInvolved?.[0]?.displayName ?? d.athletesInvolved?.[0]?.shortName;
+    const playerId = d.athletesInvolved?.[0]?.id ? String(d.athletesInvolved[0].id) : undefined;
     const clock = d.clock?.displayValue?.replace("'+", '+') ?? '';
     if (comp.sport === 'rugby') {
       const k = RUGBY[d.type.text.toLowerCase()];
       if (k === 'red') reds.push({ teamId: d.team.id, player, clock });
-      else if (k) scoring.push({ teamId: d.team.id, kind: k, player, clock });
-    } else if (d.scoringPlay) scoring.push({ teamId: d.team.id, kind: d.ownGoal ? 'owngoal' : d.penaltyKick ? 'penalty' : 'goal', player, clock });
+      else if (k) scoring.push({ teamId: d.team.id, kind: k, player, playerId, clock });
+    } else if (d.scoringPlay) scoring.push({ teamId: d.team.id, kind: d.ownGoal ? 'owngoal' : d.penaltyKick ? 'penalty' : 'goal', player, playerId, clock });
     else if (d.redCard) reds.push({ teamId: d.team.id, player, clock });
   }
   const state = e.status.type.state;

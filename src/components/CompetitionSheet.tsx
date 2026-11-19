@@ -14,7 +14,7 @@ function LeaderList({ list, unit }: { list: Leader[]; unit: string }) {
   return (
     <div class="glass-panel leaders">
       {list.slice(0, 15).map((l, i) => (
-        <button class="leader" key={l.id} onClick={() => pushSheet({ type: 'team', sport: 'football', team: l.team, national: false })} aria-label={`${l.name}, ${l.team.name}, ${l.value} ${unit}`}>
+        <button class="leader" key={l.id} onClick={() => pushSheet({ type: 'player', sport: 'football', id: l.id, name: l.name, team: l.team })} aria-label={`${l.name}, ${l.team.name}, ${l.value} ${unit}`}>
           <span class="leader-rank tnum">{i + 1}</span>
           <Crest team={l.team} size={24} />
           <span class="leader-who">

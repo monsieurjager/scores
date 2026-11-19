@@ -214,7 +214,7 @@ function BestPlayers({ m, lineups }: { m: Match; lineups: { home: Lineup; away: 
   );
 }
 
-function Bench({ m, lineups, best }: { m: Match; lineups: { home: Lineup; away: Lineup }; best?: string }) {
+function Bench({ m, lineups, best, sport }: { m: Match; lineups: { home: Lineup; away: Lineup }; best?: string; sport: Sport }) {
   return (
     <div class="bench2">
       {(['home', 'away'] as const).map((side) => {
@@ -228,7 +228,7 @@ function Bench({ m, lineups, best }: { m: Match; lineups: { home: Lineup; away: 
             </div>
             <ul>
               {rows.map((p) => (
-                <li key={p.id} class={p.subbedIn ? '' : 'unused'}>
+                <li key={p.id} class={p.subbedIn ? '' : 'unused'} role="button" tabIndex={0} onClick={() => pushSheet({ type: 'player', sport, id: p.id, name: p.name, team: m[side], number: p.number, position: p.position })}>
                   <span class="bench-n tnum">{p.number}</span>
                   <span class="bench-name">
                     {p.name}
@@ -270,7 +270,7 @@ function Lineups({ m, lineups, sport }: { m: Match; lineups: { home: Lineup; awa
         {rated.length > 0 && <span>Note sur 10 · ★ meilleur joueur</span>}
         <span>PD : passe décisive</span>
       </p>
-      <Bench m={m} lineups={lineups} best={best} />
+      <Bench m={m} lineups={lineups} best={best} sport={sport} />
       {rated.length > 0 && <p class="pitch-legend">Notes estimées par Scores d'après les statistiques ESPN.</p>}
     </div>
   );

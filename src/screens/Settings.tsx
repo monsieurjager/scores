@@ -24,6 +24,7 @@ const GROUPS: { title: string; match: (c: (typeof COMPETITIONS)[number]) => bool
 ];
 
 const ALERT_PREFS: { key: Exclude<keyof AlertSettings, 'enabled'>; label: string }[] = [
+  { key: 'recap', label: 'Récap du matin (9 h)' },
   { key: 'lineups', label: 'Compositions officielles' },
   { key: 'goals', label: 'Buts et essais' },
   { key: 'kickoff', label: "Coup d'envoi" },

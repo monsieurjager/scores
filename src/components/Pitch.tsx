@@ -1,6 +1,7 @@
 import type { Lineup, LineupPlayer, Match, SportId, Team } from '../types';
 import { layoutFootball, layoutRugby, type Placed } from '../lib/pitch';
 import { ratingTone } from '../lib/ratings';
+import { pushSheet } from '../lib/matchStore';
 
 /** Couleur d'équipe lisible + couleur du texte (noir ou blanc selon la luminosité). */
 function colors(team: Team, fallback: string): { bg: string; fg: string } {
@@ -70,16 +71,16 @@ export function PlayerFacts({ p }: { p: LineupPlayer }) {
   );
 }
 
-function Player({ p, x, y, c, best }: { p: LineupPlayer; x: number; y: number; c: { bg: string; fg: string }; best?: boolean }) {
+function Player({ p, x, y, c, best, team, sport }: { p: LineupPlayer; x: number; y: number; c: { bg: string; fg: string }; best?: boolean; team: Team; sport: SportId }) {
   return (
-    <span class="pl" style={{ left: `${x * 100}%`, top: `${y * 100}%` }} title={`${p.number} ${p.name}`}>
+    <button class="pl" style={{ left: `${x * 100}%`, top: `${y * 100}%` }} aria-label={`${p.number} ${p.name}, fiche du joueur`} onClick={() => pushSheet({ type: 'player', sport, id: p.id, name: p.name, team, number: p.number, position: p.position })}>
       <span class={`pl-dot${p.subbedOut ? ' out' : ''}`} style={{ background: c.bg, color: c.fg }}>
         {p.number}
         {p.rating != null && <RatingPill r={p.rating} best={best} />}
       </span>
       <PlayerFacts p={p} />
       <span class="pl-name">{lastName(p.name)}</span>
-    </span>
+    </button>
   );
 }
 
@@ -99,17 +100,17 @@ export function Pitch({ m, sport, lineups, side, best }: { m: Match; sport: Spor
           <path d="M1 11H69M1 101H69M1 56H69M1 33H69M1 79H69" />
         </svg>
         {placed.map((p) => (
-          <Player key={p.player.id} p={p.player} x={p.x} y={0.9 - (p.line / 6) * 0.8} c={c} best={p.player.id === best} />
+          <Player key={p.player.id} p={p.player} x={p.x} y={0.9 - (p.line / 6) * 0.8} c={c} best={p.player.id === best} team={m[side]} sport={sport} />
         ))}
       </div>
     );
   }
 
-  const half = (placed: Placed[], top: boolean, c: { bg: string; fg: string }) => {
+  const half = (placed: Placed[], top: boolean, c: { bg: string; fg: string }, team: Team) => {
     const maxLine = Math.max(1, ...placed.map((p) => p.line));
     return placed.map((p) => {
       const y = 0.94 - (p.line / maxLine) * 0.36; // du but (bas) vers le rond central
-      return <Player key={p.player.id} p={p.player} x={top ? 1 - p.x : p.x} y={top ? 1 - y : y} c={c} best={p.player.id === best} />;
+      return <Player key={p.player.id} p={p.player} x={top ? 1 - p.x : p.x} y={top ? 1 - y : y} c={c} best={p.player.id === best} team={team} sport={sport} />;
     });
   };
   return (
@@ -119,8 +120,8 @@ export function Pitch({ m, sport, lineups, side, best }: { m: Match; sport: Spor
         <path d="M1 52.5H67M14 1V17H54V1M24 1V6H44V1M14 104V88H54V104M24 104V99H44V104" />
         <circle cx="34" cy="52.5" r="9" />
       </svg>
-      {half(layoutFootball(lineups.home.starters, lineups.home.formation), false, home)}
-      {half(layoutFootball(lineups.away.starters, lineups.away.formation), true, away)}
+      {half(layoutFootball(lineups.home.starters, lineups.home.formation), false, home, m.home)}
+      {half(layoutFootball(lineups.away.starters, lineups.away.formation), true, away, m.away)}
       <span class="pitch-tag top">
         {m.away.name}
         {lineups.away.formation ? ` · ${lineups.away.formation}` : ''}

@@ -1,9 +1,10 @@
+import { usePlayers } from '../lib/players';
 import { useMemo, useState } from 'preact/hooks';
 import { COMPETITIONS } from '../config/competitions';
 import { useFavorites, isFavMatch, toFav, type Fav } from '../lib/favorites';
 import { useTeams } from '../hooks/useTeams';
 import { useUpcoming } from '../hooks/useUpcoming';
-import { CompactCard, Empty, Section, sizedLogo } from '../components/ui';
+import { CompactCard, Crest, Empty, Section, sizedLogo } from '../components/ui';
 import { pushSheet } from '../lib/matchStore';
 import { isNationalTeam } from '../lib/teams';
 import { IconPlus, IconSearch, IconStar } from '../components/icons';
@@ -82,6 +83,7 @@ function TeamPicker({ onClose }: { onClose: () => void }) {
 
 export function Favorites() {
   const { favs, keys, toggle } = useFavorites();
+  const { players, toggle: togglePlayer } = usePlayers();
   const [picking, setPicking] = useState(false);
   const upcoming = useUpcoming(favs.length > 0);
   const nextFav = (upcoming ?? []).filter((m) => isFavMatch(m, keys)).slice(0, 8);
@@ -114,6 +116,21 @@ export function Favorites() {
           <button class="btn add-btn" onClick={() => setPicking(true)}>
             <IconPlus /> Ajouter une équipe
           </button>
+          <Section title="Mes joueurs">
+            {players.length === 0 && <li class="card note-card">Pour suivre un joueur, touche-le sur une composition, dans un effectif ou parmi les meilleurs buteurs.</li>}
+            {players.map((pl) => (
+              <li class="card team-row" key={pl.key}>
+                <button class="team-row-open" onClick={() => pushSheet({ type: 'player', sport: pl.sport, id: pl.id, name: pl.name, team: pl.team })} aria-label={`Fiche de ${pl.name}`}>
+                  <Crest team={pl.team} size={32} />
+                  <span class="team-row-text">
+                    <span class="team-name">{pl.name}</span>
+                    <span class="muted small">{pl.team.name}</span>
+                  </span>
+                </button>
+                <StarButton on label={`Ne plus suivre ${pl.name}`} onClick={() => togglePlayer(pl)} />
+              </li>
+            ))}
+          </Section>
           {nextFav.length > 0 && (
             <Section title="Prochains matchs">
               {nextFav.map((m) => (
