@@ -10,6 +10,7 @@ export interface Settings {
   /** Identifiants des compétitions masquées. */
   hiddenComps: string[];
   alerts: AlertSettings;
+  themeV?: number;
 }
 
 export interface AlertSettings {
@@ -24,15 +25,17 @@ export interface AlertSettings {
   live: boolean;
 }
 
-const DEFAULTS: Settings = { theme: 'auto', refreshSec: 5, hiddenComps: [], alerts: { enabled: false, goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true, live: true } };
+const DEFAULTS: Settings = { theme: 'dark', refreshSec: 5, hiddenComps: [], alerts: { enabled: false, goals: true, kickoff: true, halftime: true, fulltime: true, red: false, lineups: true, live: true } };
 const KEY = 'settings.v1';
 
 const read = (): Settings => {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...DEFAULTS };
-    const stored = JSON.parse(raw) as Partial<Settings>;
-    return { ...DEFAULTS, ...stored, alerts: { ...DEFAULTS.alerts, ...(stored.alerts ?? {}) } };
+    const stored = JSON.parse(raw) as Partial<Settings> & { themeV?: number };
+    // Refonte (sombre) : thème sombre par défaut, y compris pour qui avait laissé « automatique »
+    if (stored.themeV !== 2) stored.theme = stored.theme === 'light' ? 'light' : 'dark';
+    return { ...DEFAULTS, ...stored, themeV: 2, alerts: { ...DEFAULTS.alerts, ...(stored.alerts ?? {}) } } as Settings;
   } catch {
     return { ...DEFAULTS };
   }
@@ -50,7 +53,7 @@ export function applyTheme(theme: ThemeSetting = state.theme) {
 }
 
 export function updateSettings(patch: Partial<Settings>) {
-  state = { ...state, ...patch };
+  state = { ...state, ...patch, themeV: 2 };
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
   } catch {

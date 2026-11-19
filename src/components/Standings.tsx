@@ -1,5 +1,7 @@
 import { useState } from 'preact/hooks';
-import type { StandingsTable } from '../types';
+import type { SportId, StandingsTable } from '../types';
+import { useLiveMatches } from '../lib/matchStore';
+import { applyLive } from '../lib/liveTable';
 import { Crest } from './ui';
 
 /** Zones présentes dans le tableau, dans l'ordre du classement. */
@@ -9,8 +11,11 @@ const zones = (rows: StandingsTable['rows']) => {
   return [...seen].map(([label, color]) => ({ label, color }));
 };
 
-export function Standings({ table, highlight = [], full = false }: { table: StandingsTable; highlight?: string[]; full?: boolean }) {
+export function Standings({ table: base, highlight = [], full = false, compId, sport }: { table: StandingsTable; highlight?: string[]; full?: boolean; compId?: string; sport?: SportId }) {
   const [all, setAll] = useState(false);
+  const live = useLiveMatches(compId);
+  const table = sport ? applyLive(base, live, sport, compId) : base;
+  const isLive = table.rows.some((r) => r.live?.score);
   const rows = table.rows;
   const idx = rows.map((r, i) => (highlight.includes(r.team.id) ? i : -1)).filter((i) => i >= 0);
   // Équipes introuvables dans le tableau : on montre le haut du classement plutôt qu'un tableau vide.
@@ -20,6 +25,12 @@ export function Standings({ table, highlight = [], full = false }: { table: Stan
   const dash = (n: number | null) => (n == null ? '–' : n);
   return (
     <div class="glass-panel">
+      {isLive && (
+        <div class="st-live">
+          <span class="live-dot" />
+          Classement en direct · provisoire
+        </div>
+      )}
       <table class="st">
         <thead>
           <tr>
@@ -40,12 +51,14 @@ export function Standings({ table, highlight = [], full = false }: { table: Stan
                 <span class="st-rank">
                   <span class="st-zone" style={{ background: r.zone?.color ?? 'transparent' }} title={r.zone?.label} />
                   {r.rank}
+                  {r.live && r.live.delta !== 0 && <span class={`st-move ${r.live.delta > 0 ? 'up' : 'down'}`} aria-label={r.live.delta > 0 ? `gagne ${r.live.delta} place(s)` : `perd ${-r.live.delta} place(s)`}>{r.live.delta > 0 ? '▲' : '▼'}</span>}
                 </span>
               </td>
               <td>
                 <span class="st-team">
                   <Crest team={r.team} size={20} />
                   <span>{r.team.name}</span>
+                  {r.live?.score && <span class="st-score tnum">{r.live.score}</span>}
                 </span>
               </td>
               <td>{dash(r.played)}</td>

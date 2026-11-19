@@ -106,7 +106,7 @@ export function CompetitionSheet({ id, canGoBack, onBack }: { id: string; canGoB
         data?.tables.map((t) => (
           <Section key={t.title} title={data.tables.length > 1 ? t.title : 'Classement'}>
             <li style={{ listStyle: 'none' }}>
-              <Standings table={t} full />
+              <Standings compId={comp.id} sport={comp.sport} table={t} full />
             </li>
           </Section>
         ))}

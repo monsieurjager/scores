@@ -62,6 +62,9 @@ export interface FormResult {
   score: string;
   opponent: string;
   date: string;
+  /** Buts (ou points) marqués et encaissés par l'équipe */
+  gf?: number;
+  ga?: number;
 }
 
 export interface HeadToHead {
@@ -123,6 +126,8 @@ export interface StandingRow {
   points: number | null;
   /** Zone du classement (qualification européenne, relégation…) */
   zone?: { color: string; label: string };
+  /** Classement en direct : match en cours de l'équipe et places gagnées (+) ou perdues (−) */
+  live?: { score: string; delta: number };
 }
 
 export interface StandingsTable {

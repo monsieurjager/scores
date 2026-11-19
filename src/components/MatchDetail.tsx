@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'preact/hooks';
-import type { FormResult, Lineup, Match, MatchEvent, MatchSummary } from '../types';
+import type { FormResult, Lineup, Match, MatchEvent, MatchSummary, StandingsTable } from '../types';
+import { averages, h2hRecord, rugbyBreakdown, streak } from '../lib/prematch';
 import { competitionById } from '../config/competitions';
 import { formatShortDate, formatTime } from '../lib/date';
 import { halfTimeScore, isStale } from '../lib/matchStats';
@@ -150,9 +151,10 @@ function Flow({ m, events, sport }: { m: Match; events: MatchEvent[]; sport: Spo
   );
 }
 
-function StatRows({ summary, keys }: { summary: MatchSummary; keys?: string[] }) {
-  const LOWER = new Set(['foulsCommitted', 'offsides']);
-  const list = keys ? summary.stats.filter((s) => keys.includes(s.key)) : summary.stats;
+function StatRows({ summary, stats, keys }: { summary?: MatchSummary; stats?: MatchSummary['stats']; keys?: string[] }) {
+  const LOWER = new Set(['foulsCommitted', 'offsides', 'yellow', 'red']);
+  const all = stats ?? summary?.stats ?? [];
+  const list = keys ? all.filter((s) => keys.includes(s.key)) : all;
   return (
     <div class="glass-panel stat-rows">
       {list.map((st) => {
@@ -337,10 +339,11 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
   const lineups = summary?.lineups && sport === 'rugby' ? withTries(summary.lineups, events) : summary?.lineups;
   const started = live || done;
 
+  const rugbyStats = sport === 'rugby' && started ? rugbyBreakdown(m, events) : [];
   const tabs: { id: Tab; label: string }[] = [
     { id: 'resume', label: 'Résumé' },
     ...(lineups ? [{ id: 'compos' as Tab, label: 'Compos' }] : []),
-    ...(summary && summary.stats.length > 0 ? [{ id: 'stats' as Tab, label: 'Stats' }] : []),
+    ...((summary && summary.stats.length > 0) || rugbyStats.length > 0 ? [{ id: 'stats' as Tab, label: 'Stats' }] : []),
     ...(standings ? [{ id: 'classement' as Tab, label: 'Classement' }] : []),
     ...(summary && (summary.form || summary.h2h.length > 0) ? [{ id: 'h2h' as Tab, label: 'Face-à-face' }] : []),
   ];
@@ -421,7 +424,7 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
               </li>
             </Section>
           )}
-          <Section title={sport === 'rugby' ? 'Points' : 'Buts'}>
+          {(m.status !== 'scheduled' || events.length > 0) && <Section title={sport === 'rugby' ? 'Points' : 'Buts'}>
             <li style={{ listStyle: 'none' }}>
               {events.length > 0 ? (
                 <Timeline m={m} events={events} sport={sport} assists={summary?.assists ?? {}} />
@@ -429,7 +432,7 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
                 <div class="glass-panel note">{stale ? "La source n'a pas transmis le résultat de ce match." : m.status === 'scheduled' ? "Le match n'a pas encore commencé." : m.status === 'postponed' ? 'Match reporté.' : 'Aucun fait de match enregistré pour le moment.'}</div>
               )}
             </li>
-          </Section>
+          </Section>}
           {summary && summary.stats.length > 0 && (
             <Section title="En bref">
               <li style={{ listStyle: 'none' }}>
@@ -441,7 +444,14 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
             </Section>
           )}
           {m.status === 'scheduled' && !lineups && summary !== undefined && <p class="note">Les compositions apparaîtront ici dès leur publication, en général une heure avant le coup d'envoi.</p>}
-          {summary?.form && (
+          {summary && m.status === 'scheduled' && (
+            <Section title="Avant-match">
+              <li style={{ listStyle: 'none' }}>
+                <PreMatch m={m} summary={summary} table={standings ?? undefined} sport={sport} />
+              </li>
+            </Section>
+          )}
+          {summary?.form && m.status !== 'scheduled' && (
             <Section title="Forme récente">
               <li style={{ listStyle: 'none' }}>
                 <FormBlock m={m} summary={summary} />
@@ -484,7 +494,15 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
         </Section>
       )}
 
-      {current === 'stats' && summary && (
+      {current === 'stats' && rugbyStats.length > 0 && (
+        <Section title="Bilan des points">
+          <li style={{ listStyle: 'none' }}>
+            <StatRows stats={rugbyStats} />
+            <p class="pitch-legend">Calculé d'après les faits de match (ESPN ne fournit pas de statistiques de rugby).</p>
+          </li>
+        </Section>
+      )}
+      {current === 'stats' && summary && summary.stats.length > 0 && (
         <>
           <Section title="Statistiques">
             <li style={{ listStyle: 'none' }}>
@@ -499,13 +517,18 @@ export function MatchDetail({ id, onClose, canGoBack = false }: { id: string; on
       {current === 'classement' && standings && (
         <Section title={`Classement · ${standings.title}`}>
           <li style={{ listStyle: 'none' }}>
-            <Standings table={standings} highlight={ids} />
+            <Standings compId={comp.id} sport={sport} table={standings} highlight={ids} />
           </li>
         </Section>
       )}
 
       {current === 'h2h' && summary && (
         <>
+          <Section title="Comparaison">
+            <li style={{ listStyle: 'none' }}>
+              <PreMatch m={m} summary={summary} table={standings ?? undefined} sport={sport} />
+            </li>
+          </Section>
           {summary.form && (
             <Section title="Forme récente">
               <li style={{ listStyle: 'none' }}>
@@ -551,6 +574,58 @@ function FormBlock({ m, summary }: { m: Match; summary: MatchSummary }) {
           <FormPills results={summary.form![side]} />
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Avant-match : classement, forme, série en cours, moyennes et bilan des confrontations, face à face. */
+function PreMatch({ m, summary, table, sport }: { m: Match; summary: MatchSummary; table?: StandingsTable; sport: Sport }) {
+  const unit = sport === 'rugby' ? 'Points' : 'Buts';
+  const side = (s: 'home' | 'away') => {
+    const form = summary.form?.[s] ?? [];
+    const row = table?.rows.find((r) => r.team.id === m[s].id);
+    return { form, row, streak: streak(form), avg: averages(form) };
+  };
+  const h = side('home');
+  const a = side('away');
+  const rec = h2hRecord(summary.h2h, m.home.name, m.away.name);
+  const fmt = (n: number) => n.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+  const rows: [string, preact.ComponentChildren, preact.ComponentChildren][] = [];
+  if (h.row || a.row) rows.push(['Classement', h.row ? `${h.row.rank}${h.row.rank === 1 ? 'er' : 'e'} · ${h.row.points ?? '–'} pts` : '–', a.row ? `${a.row.rank}${a.row.rank === 1 ? 'er' : 'e'} · ${a.row.points ?? '–'} pts` : '–']);
+  if (h.form.length || a.form.length) rows.push(['Forme', <FormPills results={h.form} />, <FormPills results={a.form} />]);
+  if (h.avg || a.avg) rows.push([`${unit} marqués (moy.)`, h.avg ? fmt(h.avg.gf) : '–', a.avg ? fmt(a.avg.gf) : '–']);
+  if (h.avg || a.avg) rows.push([`${unit} encaissés (moy.)`, h.avg ? fmt(h.avg.ga) : '–', a.avg ? fmt(a.avg.ga) : '–']);
+  if (!rows.length && !rec && !h.streak && !a.streak) return <div class="glass-panel note">Pas encore de données d'avant-match.</div>;
+  return (
+    <div class="glass-panel pre">
+      <div class="pre-head">
+        <Crest team={m.home} size={28} />
+        <span />
+        <Crest team={m.away} size={28} />
+      </div>
+      {rows.map(([label, l, r]) => (
+        <div class="pre-row" key={label}>
+          <span class="pre-v">{l}</span>
+          <span class="pre-l">{label}</span>
+          <span class="pre-v right">{r}</span>
+        </div>
+      ))}
+      {(h.streak || a.streak) && (
+        <div class="pre-streaks">
+          <span>{h.streak ?? ''}</span>
+          <span class="right">{a.streak ?? ''}</span>
+        </div>
+      )}
+      {rec && (
+        <div class="pre-h2h">
+          <span class="pre-l">Derniers face-à-face</span>
+          <div class="pre-bar">
+            <span class="home" style={{ flex: rec.home || 0.001 }}>{rec.home > 0 ? `${rec.home} V` : ''}</span>
+            <span class="draw" style={{ flex: rec.draw || 0.001 }}>{rec.draw > 0 ? `${rec.draw} N` : ''}</span>
+            <span class="away" style={{ flex: rec.away || 0.001 }}>{rec.away > 0 ? `${rec.away} V` : ''}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

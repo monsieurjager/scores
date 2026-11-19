@@ -163,7 +163,7 @@ export function TeamSheet({ sport, team, national, canGoBack, onBack }: { sport:
           {table && (
             <Section title={`Classement · ${table.title}`}>
               <li style={{ listStyle: 'none' }}>
-                <Standings table={table} highlight={ids} />
+                <Standings compId={main?.id} sport={sport} table={table} highlight={ids} />
               </li>
             </Section>
           )}
@@ -219,7 +219,7 @@ export function TeamSheet({ sport, team, national, canGoBack, onBack }: { sport:
       {tab === 'classement' && table && (
         <Section title={table.title}>
           <li style={{ listStyle: 'none' }}>
-            <Standings table={table} highlight={ids} full />
+            <Standings compId={main?.id} sport={sport} table={table} highlight={ids} full />
             {main && (
               <button class="tl-more solo" onClick={() => pushSheet({ type: 'comp', id: main.id })}>
                 Voir la compétition

@@ -18,6 +18,19 @@ export function publishMatches(list: Match[]) {
   subs.forEach((f) => f());
 }
 
+/** Matchs en cours d'une compétition (pour le classement en direct). */
+export function useLiveMatches(compId?: string): Match[] {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const f = () => bump((n) => n + 1);
+    subs.add(f);
+    return () => {
+      subs.delete(f);
+    };
+  }, []);
+  return compId ? [...matches.values()].filter((m) => m.competitionId === compId && m.status === 'live') : [];
+}
+
 export function useMatch(id: string | null): Match | undefined {
   const [, bump] = useState(0);
   useEffect(() => {

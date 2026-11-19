@@ -198,7 +198,7 @@ export const espnProvider: MatchProvider = {
       rosters?: { homeAway: 'home' | 'away'; team?: { id?: string }; formation?: string; roster?: { starter?: boolean; jersey?: string; subbedIn?: boolean; subbedOut?: boolean; position?: { abbreviation?: string }; athlete: Ath; stats?: { name: string; value?: number }[] }[] }[];
       header?: { competitions?: { status?: { type?: { state?: string } }; competitors?: { homeAway: 'home' | 'away'; score?: string }[] }[] };
       keyEvents?: { id: string; type: { text: string }; scoringPlay?: boolean; clock?: { value?: number; displayValue?: string }; team?: { id: string }; participants?: { athlete: Ath }[] }[];
-      lastFiveGames?: { team: { id: string }; events?: { gameResult?: string; score?: string; gameDate?: string; opponent?: { displayName?: string } }[] }[];
+      lastFiveGames?: { team: { id: string }; events?: { gameResult?: string; score?: string; gameDate?: string; atVs?: string; homeTeamScore?: string; awayTeamScore?: string; opponent?: { displayName?: string } }[] }[];
       seasonseries?: { events?: { date?: string; competitors?: { homeAway: string; score?: string | { displayValue?: string }; team: { displayName?: string } }[] }[] }[];
       headToHeadGames?: { team: { displayName?: string }; events?: { gameDate?: string; score?: string; atVs?: string; opponent?: { displayName?: string } }[] }[];
     };
@@ -278,7 +278,14 @@ export const espnProvider: MatchProvider = {
     const formOf = (id?: string): FormResult[] =>
       (j.lastFiveGames?.find((x) => String(x.team.id) === String(id))?.events ?? [])
         .filter((e) => e.gameResult === 'W' || e.gameResult === 'D' || e.gameResult === 'L')
-        .map((e) => ({ result: e.gameResult as FormResult['result'], score: e.score ?? '', opponent: nm(e.opponent?.displayName), date: e.gameDate ?? '' }));
+        .map((e): FormResult => {
+          // « @ » : l'équipe jouait à l'extérieur
+          const h = Number(e.homeTeamScore);
+          const a = Number(e.awayTeamScore);
+          const ok = e.homeTeamScore != null && e.awayTeamScore != null && Number.isFinite(h) && Number.isFinite(a);
+          const [gf, ga] = e.atVs === '@' ? [a, h] : [h, a];
+          return { result: e.gameResult as FormResult['result'], score: ok ? `${gf}-${ga}` : e.score ?? '', opponent: nm(e.opponent?.displayName), date: e.gameDate ?? '', ...(ok ? { gf, ga } : {}) };
+        });
     const fh = formOf(homeId);
     const fa = formOf(awayId);
     const scoreTxt = (x?: string | { displayValue?: string }) => (typeof x === 'object' ? x?.displayValue : x) ?? '';
